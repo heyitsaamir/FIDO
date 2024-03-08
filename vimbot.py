@@ -13,7 +13,7 @@ class Vimbot:
             sync_playwright()
             .start()
             .chromium.launch_persistent_context(
-                "",
+                "/Users/aamirjawaid/Library/Application Support/Google/Chrome",
                 headless=headless,
                 args=[
                     f"--disable-extensions-except={vimium_path}",

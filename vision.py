@@ -6,6 +6,7 @@ from io import BytesIO
 import openai
 from dotenv import load_dotenv
 from PIL import Image
+from typing import Union
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -22,9 +23,11 @@ def encode_and_resize(image):
     return encoded_image
 
 
-def get_actions(screenshot, objective):
+def get_actions(screenshot, objective, completion_condition = Union[str, None]):
     # raise NotImplementedError("This function is not implemented yet.")
     encoded_screenshot = encode_and_resize(screenshot)
+    # if completion condition is not none, then use it other wise use When the page seems satisfactory,
+    completion_condition_str = f"When the completion condition ({completion_condition}) seems to be satisfiedm" if completion_condition else "When the page seems satisfactory, "
     response = openai.chat.completions.create(
         model="gpt-4-vision-preview",
         messages=[
@@ -33,7 +36,7 @@ def get_actions(screenshot, objective):
                 "content": [
                     {
                         "type": "text",
-                        "text": f"You need to choose which action to take to help a user do this task: {objective}. Your options are navigate, type, click, and done. Navigate should take you to the specified URL. Type and click take strings where if you want to click on an object, return the string with the yellow character sequence you want to click on, and to type just a string with the message you want to type. For clicks, only respond with the 1-2 letter sequence in the yellow box. If there are multiple valid options choose the one you think a user would select. For typing, return a click to click on the box along with a type with the message to write. When the page seems satisfactory, return done as a key with no value. You must respond in JSON only with no other fluff or bad things will happen. The JSON keys must ONLY be one of navigate, type, or click. Do not return the JSON inside a code block.",
+                        "text": f"You need to choose which action to take to help a user do this task: {objective}. Your options are navigate, type, click, and done. Navigate should take you to the specified URL. Type and click take strings where if you want to click on an object, return the string with the yellow character sequence you want to click on, and to type just a string with the message you want to type. For clicks, only respond with the 1-2 letter sequence in the yellow box. If there are multiple valid options choose the one you think a user would select. For typing, return a click to click on the box along with a type with the message to write. {completion_condition_str} return done as a key with no value. You must respond in JSON only with no other fluff or bad things will happen. The JSON keys must ONLY be one of navigate, type, or click. Do not return the JSON inside a code block.",
                     },
                     {
                         "type": "image_url",
