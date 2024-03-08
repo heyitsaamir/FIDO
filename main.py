@@ -1,5 +1,6 @@
 import argparse
 import time
+import os
 
 from whisper_mic import WhisperMic
 
@@ -11,8 +12,9 @@ def main(voice_mode):
     print("Initializing the Vimbot driver...")
     driver = Vimbot()
 
-    print("Navigating to Google...")
-    driver.navigate("https://www.google.com")
+    # print("Navigating to Google...")
+    # driver.navigate("https://www.google.com")
+    initTodoist(driver)
 
     if voice_mode:
         print("Voice mode enabled. Listening for your command...")
@@ -37,6 +39,11 @@ def main(voice_mode):
         if driver.perform_action(action):  # returns True if done
             break
 
+def initTodoist(driver):
+    driver.navigate("https://app.todoist.com/auth/login")
+    driver.page.type('input[type="email"]', os.getenv("TODOIST_USER"))
+    driver.page.type('input[type="password"]', os.getenv("TODOIST_PASSWORD"))
+    driver.page.click('button[type="submit"]')
 
 def main_entry():
     parser = argparse.ArgumentParser(description="Run the Vimbot with optional voice input.")
