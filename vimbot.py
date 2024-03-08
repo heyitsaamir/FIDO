@@ -45,15 +45,21 @@ class Vimbot:
     def type(self, text):
         time.sleep(1)
         self.page.keyboard.type(text)
-        self.page.keyboard.press("Enter")
+        self.reset()
+        # self.page.keyboard.press("Enter")
 
     def click(self, text):
         self.page.keyboard.type(text)
 
-    def capture(self):
-        # capture a screenshot with vim bindings on the screen
+    def reset(self, withPause: bool = False):
         self.page.keyboard.press("Escape")
         self.page.keyboard.type("f")
+        if withPause:
+            time.sleep(1)
+
+    def capture(self):
+        # capture a screenshot with vim bindings on the screen
+        self.reset()
 
         screenshot = Image.open(BytesIO(self.page.screenshot())).convert("RGB")
         return screenshot
