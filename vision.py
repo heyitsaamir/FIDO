@@ -23,6 +23,7 @@ def encode_and_resize(image):
 
 
 def get_actions(screenshot, objective):
+    # raise NotImplementedError("This function is not implemented yet.")
     encoded_screenshot = encode_and_resize(screenshot)
     response = openai.chat.completions.create(
         model="gpt-4-vision-preview",
@@ -32,7 +33,7 @@ def get_actions(screenshot, objective):
                 "content": [
                     {
                         "type": "text",
-                        "text": f"You need to choose which action to take to help a user do this task: {objective}. Your options are navigate, type, click, and done. Navigate should take you to the specified URL. Type and click take strings where if you want to click on an object, return the string with the yellow character sequence you want to click on, and to type just a string with the message you want to type. For clicks, please only respond with the 1-2 letter sequence in the yellow box, and if there are multiple valid options choose the one you think a user would select. For typing, please return a click to click on the box along with a type with the message to write. When the page seems satisfactory, return done as a key with no value. You must respond in JSON only with no other fluff or bad things will happen. The JSON keys must ONLY be one of navigate, type, or click. Do not return the JSON inside a code block.",
+                        "text": f"You need to choose which action to take to help a user do this task: {objective}. Your options are navigate, type, click, and done. Navigate should take you to the specified URL. Type and click take strings where if you want to click on an object, return the string with the yellow character sequence you want to click on, and to type just a string with the message you want to type. For clicks, only respond with the 1-2 letter sequence in the yellow box. If there are multiple valid options choose the one you think a user would select. For typing, return a click to click on the box along with a type with the message to write. When the page seems satisfactory, return done as a key with no value. You must respond in JSON only with no other fluff or bad things will happen. The JSON keys must ONLY be one of navigate, type, or click. Do not return the JSON inside a code block.",
                     },
                     {
                         "type": "image_url",
@@ -49,7 +50,7 @@ def get_actions(screenshot, objective):
     try:
         json_response = json.loads(response.choices[0].message.content)
     except json.JSONDecodeError:
-        print("Error: Invalid JSON response")
+        print("Error: Invalid JSON response" + json.dumps(response.choices))
         cleaned_response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -63,7 +64,7 @@ def get_actions(screenshot, objective):
         try:
             cleaned_json_response = json.loads(cleaned_response.choices[0].message.content)
         except json.JSONDecodeError:
-            print("Error: Invalid JSON response")
+            print("Error: Invalid JSON response" + json.dumps(cleaned_response.choices))
             return {}
         return cleaned_json_response
 
