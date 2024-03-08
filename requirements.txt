@@ -20,3 +20,4 @@ sniffio==1.3.0
 whisper-mic
 tqdm==4.66.1
 typing_extensions==4.8.0
+flask==2.0.2
