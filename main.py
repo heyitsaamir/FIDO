@@ -7,9 +7,10 @@ from vimbot import Vimbot
 
 from flask import Flask, request
 from typing import Literal, Union
+import json
 
 
-def main(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: Union[str, None] = None):
+def main(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: str | None = None):
     print("Initializing the Vimbot driver...")
 
     init_functions = {
@@ -19,20 +20,23 @@ def main(website: Union[Literal['todoist'], Literal['google']], objective: str, 
 
     # Call the appropriate function
     if website in init_functions:
-        driver = init_functions[website]()
+        driver = init_functions[website]() 
     else:
         raise ValueError(f"Invalid website: {website}")
 
     input("Press Enter to continue...")
+    most_recent_action = None
     while True:
         time.sleep(1)
         print("Capturing the screen...")
         screenshot = driver.capture()
         print("Getting actions for the given objective...")
-        action = vision.get_actions(screenshot, objective, completion_condition)
+        action = vision.get_actions(screenshot, objective, completion_condition, most_recent_action)
+        most_recent_action = json.dumps(action)
         print(f"JSON Response: {action}")
         if driver.perform_action(action):  # returns True if done
             break
+        # input("Press Enter to continue...")
 
 # Opens todoist and performs login
 def initTodoistFresh(): 
@@ -41,13 +45,14 @@ def initTodoistFresh():
     driver.page.type('input[type="email"]', os.getenv("TODOIST_USER")) # type: ignore
     driver.page.type('input[type="password"]', os.getenv("TODOIST_PASSWORD")) # type: ignore
     driver.page.click('button[type="submit"]')
-    driver.page.wait_for_selector('button[aria-label="Settings"]')
+    driver.page.wait_for_selector('button[aria-controls="sidebar"]')
     return driver
 
 def initTodoist(): 
     driver = Vimbot()
     driver.navigate("https://app.todoist.com")
-    driver.page.wait_for_selector('button[aria-label="Settings"]')
+    driver.page.wait_for_selector('button[aria-controls="sidebar"]')
+    driver.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
     return driver
 
 
@@ -73,7 +78,7 @@ def run():
     completion_condition = data.get("completion_condition")
     website = data.get("website")
 
-    print(f"Received request to run the Vimbot with prompt: {prompt} and website: {website}")
+    print(f"Received request to run the Vimbot with prompt: {prompt} and website: {website} and completion_condition: {completion_condition}")
     main(website, prompt, completion_condition)
     return {"status": "success"}
 
