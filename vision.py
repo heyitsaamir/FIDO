@@ -6,7 +6,6 @@ from io import BytesIO
 import openai
 from dotenv import load_dotenv
 from PIL import Image
-from typing import Union
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -23,11 +22,25 @@ def encode_and_resize(image):
     return encoded_image
 
 
-def get_actions(screenshot, objective, completion_condition = Union[str, None]):
+def get_actions(screenshot, objective, completion_condition, most_recent_action: str | None):
     # raise NotImplementedError("This function is not implemented yet.")
     encoded_screenshot = encode_and_resize(screenshot)
     # if completion condition is not none, then use it other wise use When the page seems satisfactory,
-    completion_condition_str = f"When the completion condition ({completion_condition}) seems to be satisfiedm" if completion_condition else "When the page seems satisfactory, "
+    completion_condition_str = f"When the completion condition ({completion_condition}) seems to be satisfied" if completion_condition else "When the page seems satisfactory, "
+    most_recent_action_str = f"the most recent action was: {most_recent_action}" if most_recent_action else ""
+    example_click = json.dumps({"click": "A", "description": "click on the A button"})
+    example_type_click = json.dumps({"click": "A", "type": "text", "description": "type text in textbox"})
+    example_navigation = json.dumps({"navigate": "https://www.example.com", "description": "navigate to example.com"})
+    example_done = json.dumps({"done": None})
+    prompt = f'''
+    Given the image of a website, your objective is: {objective} and the completion condition is: {completion_condition}. You have access to the following schema:
+    For navigation: {example_navigation},
+    For clicking: {example_click}. The value for clicks is a 1-2 letter sequence found within a yellow box. 
+    For typing: {example_type_click}. For text input fields, first click on the input field (described by a 1-2 letter sequence in the yellow box) and then type the text.
+    When there are multiple valid options, pick the best one. If the objective is complete, return { example_done }. Remember to only output valid JSON objects. that match the schema. The description field in each example is a simple description of what action is intended to be performed. Do not return the JSON inside a code block. Only return 1 object at a given time.
+    '''
+
+    print(f"Prompt: {prompt}")
     response = openai.chat.completions.create(
         model="gpt-4-vision-preview",
         messages=[
@@ -36,7 +49,7 @@ def get_actions(screenshot, objective, completion_condition = Union[str, None]):
                 "content": [
                     {
                         "type": "text",
-                        "text": f"You need to choose which action to take to help a user do this task: {objective}. Your options are navigate, type, click, and done. Navigate should take you to the specified URL. Type and click take strings where if you want to click on an object, return the string with the yellow character sequence you want to click on, and to type just a string with the message you want to type. For clicks, only respond with the 1-2 letter sequence in the yellow box. If there are multiple valid options choose the one you think a user would select. For typing, return a click to click on the box along with a type with the message to write. {completion_condition_str} return done as a key with no value. You must respond in JSON only with no other fluff or bad things will happen. The JSON keys must ONLY be one of navigate, type, or click. Do not return the JSON inside a code block.",
+                        "text": prompt,
                     },
                     {
                         "type": "image_url",
@@ -45,15 +58,17 @@ def get_actions(screenshot, objective, completion_condition = Union[str, None]):
                         },
                     },
                 ],
-            }
+            },
         ],
         max_tokens=100,
     )
 
+    print(f"Response: {response}")
+
     try:
         json_response = json.loads(response.choices[0].message.content)
     except json.JSONDecodeError:
-        print("Error: Invalid JSON response" + json.dumps(response.choices))
+        print("Error: Invalid JSON response" + str(response.choices))
         cleaned_response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
