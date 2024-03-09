@@ -27,12 +27,13 @@ class Vimbot:
         self.page.set_viewport_size({"width": 1080, "height": 720})
 
     def perform_action(self, action):
+        print(f"Performing action: {action}")
         if "done" in action:
             return True
         if "click" in action and "type" in action:
             self.click(action["click"])
             self.type(action["type"])
-        if "navigate" in action:
+        elif "navigate" in action:
             self.navigate(action["navigate"])
         elif "type" in action:
             self.type(action["type"])
@@ -45,7 +46,6 @@ class Vimbot:
     def type(self, text):
         time.sleep(1)
         self.page.keyboard.type(text)
-        self.reset()
         # self.page.keyboard.press("Enter")
 
     def click(self, text):
