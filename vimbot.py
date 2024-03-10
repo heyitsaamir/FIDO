@@ -24,11 +24,13 @@ class Vimbot:
         )
 
         self.page = self.context.new_page()
-        self.page.set_viewport_size({"width": 1080, "height": 720})
+        self.page.set_viewport_size({"width": 390, "height": 844})
 
     def perform_action(self, action):
         print(f"Performing action: {action}")
         if "done" in action:
+            return True
+        if "result" in action:
             return True
         if "click" in action and "type" in action:
             self.click(action["click"])

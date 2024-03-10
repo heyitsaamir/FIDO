@@ -7,6 +7,7 @@ from vimbot import Vimbot
 
 from flask import Flask, request
 from typing import Literal, Union, List
+from PIL import Image
 
 
 def main(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: str | None = None):
@@ -84,7 +85,7 @@ def classicMode():
     # The classic mode of the Vimbot
     print("Starting the Vimbot in classic mode...")
     objective = input("Please enter your objective: ")
-    main("todoist", objective)
+    main("google", objective)
 
 if __name__ == "__main__":
     # if classic mode is supplied, then run classicMode otherwise run the server
