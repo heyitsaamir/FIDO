@@ -6,8 +6,7 @@ import vision
 from vimbot import Vimbot
 
 from flask import Flask, request
-from typing import Literal, Union
-import json
+from typing import Literal, Union, List
 
 
 def main(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: str | None = None):
@@ -25,14 +24,13 @@ def main(website: Union[Literal['todoist'], Literal['google']], objective: str, 
         raise ValueError(f"Invalid website: {website}")
 
     input("Press Enter to continue...")
-    most_recent_action = None
+    history: List[str] = []
     while True:
         time.sleep(1)
         print("Capturing the screen...")
         screenshot = driver.capture()
         print("Getting actions for the given objective...")
-        action = vision.get_actions(screenshot, objective, completion_condition, most_recent_action)
-        most_recent_action = json.dumps(action)
+        action = vision.get_actions(screenshot, objective, completion_condition, history)
         print(f"JSON Response: {action}")
         if driver.perform_action(action):  # returns True if done
             break
