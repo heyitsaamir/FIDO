@@ -8,9 +8,10 @@ from vimbot import Vimbot
 from flask import Flask, request
 from typing import Literal, Union, List
 from PIL import Image
+import json
 
 
-def main(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: str | None = None):
+def main(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: str = "When the object seems complete"):
     print("Initializing the Vimbot driver...")
 
     init_functions = {
@@ -26,16 +27,18 @@ def main(website: Union[Literal['todoist'], Literal['google']], objective: str, 
 
     input("Press Enter to continue...")
     history: List[str] = []
+    result = None
     while True:
         time.sleep(1)
         print("Capturing the screen...")
         screenshot = driver.capture()
         print("Getting actions for the given objective...")
         action = vision.get_actions(screenshot, objective, completion_condition, history)
-        print(f"JSON Response: {action}")
-        if driver.perform_action(action):  # returns True if done
+        perform_action_result = driver.perform_action(action)
+        if perform_action_result:
+            result = perform_action_result
             break
-        # input("Press Enter to continue...")
+    return result
 
 # Opens todoist and performs login
 def initTodoistFresh(): 
@@ -75,17 +78,26 @@ def run():
     data = request.get_json()
     prompt = data.get("prompt")
     completion_condition = data.get("completion_condition")
-    website = data.get("website")
+    # website = data.get("website")
 
-    print(f"Received request to run the Vimbot with prompt: {prompt} and website: {website} and completion_condition: {completion_condition}")
-    main(website, prompt, completion_condition)
-    return {"status": "success"}
+    print(f"Received request to run the Vimbot with prompt: {prompt} and completion_condition: {completion_condition}")
+    result = main("google", prompt, completion_condition)
+    # if result is a json, return it as is, otherwise return it as a string
+    if isinstance(result, dict):
+        return result
+    else:
+        return {"result": result}
 
 def classicMode():
     # The classic mode of the Vimbot
     print("Starting the Vimbot in classic mode...")
     objective = input("Please enter your objective: ")
-    main("google", objective)
+    result = main("google", objective)
+    if isinstance(result, dict):
+        return result
+    else:
+        return {"result": result}
+
 
 if __name__ == "__main__":
     # if classic mode is supplied, then run classicMode otherwise run the server

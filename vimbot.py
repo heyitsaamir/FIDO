@@ -31,7 +31,7 @@ class Vimbot:
         if "done" in action:
             return True
         if "result" in action:
-            return True
+            return action
         if "click" in action and "type" in action:
             self.click(action["click"])
             self.type(action["type"])
@@ -39,6 +39,8 @@ class Vimbot:
             self.navigate(action["navigate"])
         elif "type" in action:
             self.type(action["type"])
+        elif "scroll" in action:
+            self.scroll(action["scroll"])
         elif "click" in action:
             self.click(action["click"])
 
@@ -58,6 +60,13 @@ class Vimbot:
         self.page.keyboard.type("f")
         if withPause:
             time.sleep(1)
+
+    def scroll(self, direction):
+        self.page.keyboard.press("Escape")
+        if direction == "down":
+            self.page.keyboard.type("d")
+        elif direction == "up":
+            self.page.keyboard.type("u")
 
     def capture(self):
         # capture a screenshot with vim bindings on the screen
