@@ -24,7 +24,7 @@ class Vimbot:
         )
 
         self.page = self.context.new_page()
-        self.page.set_viewport_size({"width": 390, "height": 844})
+        self.page.set_viewport_size({"width": 760, "height": 844})
 
     def perform_action(self, action):
         print(f"Performing action: {action}")
@@ -33,7 +33,10 @@ class Vimbot:
         if "result" in action:
             return action
         if "click" in action and "type" in action:
-            self.click(action["click"])
+            if "clicked_element" in action:
+                self.page.locator(action["clicked_element"]).click()
+            else:
+                self.click(text=action["click"])
             self.type(action["type"])
         elif "navigate" in action:
             self.navigate(action["navigate"])
@@ -42,7 +45,23 @@ class Vimbot:
         elif "scroll" in action:
             self.scroll(action["scroll"])
         elif "click" in action:
+            if "clicked_element" in action:
+                self.page.locator(action["clicked_element"]).click()
+            else:
+                self.click(text=action["click"])
+    
+    def focus(self, action):
+        if "click" in action:
+            self.page.keyboard.press("Escape")
+            self.page.keyboard.type("X")
+            time.sleep(1)
+            print(f"Clicking on {action['click']}")
             self.click(action["click"])
+            time.sleep(1)
+            focusedElement = self.get_active_element()
+            self.page.keyboard.type("f")
+            time.sleep(1)
+            return focusedElement
 
     def navigate(self, url):
         self.page.goto(url=url if "://" in url else "https://" + url, timeout=60000)
@@ -68,9 +87,14 @@ class Vimbot:
         elif direction == "up":
             self.page.keyboard.type("u")
 
+    def get_current_url(self):
+        return self.page.url
+    
+    def get_active_element(self):
+        return self.page.evaluate("window.playwright.selector(document.activeElement)")
+
     def capture(self):
         # capture a screenshot with vim bindings on the screen
         self.reset()
-
         screenshot = Image.open(BytesIO(self.page.screenshot())).convert("RGB")
         return screenshot

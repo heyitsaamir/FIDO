@@ -23,7 +23,7 @@ def encode_and_resize(image):
     encoded_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return encoded_image
 
-def build_initial_prompt(objective, completion_condition):
+def build_initial_prompt(objective, completion_condition, current_url):
     example_click = json.dumps({"click": "A", "description": "click on the A button"})
     example_type_click = json.dumps({"click": "A", "type": "text", "description": "type text in textbox"})
     example_navigation = json.dumps({"navigate": "https://www.example.com", "description": "navigate to example.com"})
@@ -31,8 +31,9 @@ def build_initial_prompt(objective, completion_condition):
     example_result = json.dumps({"result": [{"title": "some title"}, {"description": "some description"}]})
     example_scroll = json.dumps({"scroll": "down", "description": "scroll down"})
     return f'''
-    Given the image of a website, your objective is: {objective} and the completion condition is: {completion_condition}. You have access to the following schema:
-    For navigation: {example_navigation}.
+    Given the image of a website, your objective is: {objective} and the completion condition is: {completion_condition}. You are currently on the website: {current_url}.
+    You have access to the following schema:
+    For navigation to a different website: {example_navigation}.
     For clicking: {example_click}. The value for clicks is a 1-2 letter sequence found within a yellow box. 
     For typing: {example_type_click}. For text input fields, first click on the input field (described by a 1-2 letter sequence in the yellow box) and then type the text.
     If you think the interesting part of the website is not visible, you can scroll down or up. For scrolling: {example_scroll}.
@@ -42,16 +43,16 @@ def build_initial_prompt(objective, completion_condition):
     Do not return the JSON inside a code block. Only return 1 object at a given time.
     '''
 
-def build_subsequent_prompt():
-    return f'What should the next action be?'
+def build_subsequent_prompt(current_url):
+    return f'What should the next action be? You are currently on the website: {current_url}.'
 
-def get_actions(screenshot, objective, completion_condition, prompt_history: List[str]):
+def get_actions(screenshot, objective, completion_condition, current_url, prompt_history: List[str]):
     encoded_screenshot = encode_and_resize(screenshot)
     # if prompt_history is empty
     if not prompt_history:
-        prompt = build_initial_prompt(objective, completion_condition)
+        prompt = build_initial_prompt(objective, completion_condition, current_url)
     else:
-        prompt = build_subsequent_prompt()
+        prompt = build_subsequent_prompt(current_url)
 
     next_message: ChatCompletionMessageParam = {
         "role": "user",
@@ -86,7 +87,7 @@ def get_actions(screenshot, objective, completion_condition, prompt_history: Lis
     response = openai.chat.completions.create(
         model="gpt-4-vision-preview",
         messages=messages,
-        max_tokens=100,
+        max_tokens=130,
     )
 
     print(f"Response: {response}")
