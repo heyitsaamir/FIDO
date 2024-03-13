@@ -45,14 +45,31 @@ def main(website: Union[Literal['todoist'], Literal['google']], objective: str, 
         else:
             playbook_steps.append(action)
         perform_action_result = driver.perform_action(action)
-        input("Press Enter to continue...")
         if perform_action_result:
             result = perform_action_result
             break
-    print(history, playbook_steps)
-    with open("playbook.json", "w") as f:
-        json.dump(playbook_steps, f)
+    savePlaybook(playbook_steps, objective)
     return result
+
+def savePlaybook(playbook_steps, objective):
+    playbookFileName = "playbook_" + str(int(time.time())) + ".json"
+    with open(playbookFileName, "w") as f:
+        json.dump(playbook_steps, f)
+    playbook_record = "playbook_record.json"
+    # get the playbook record if it exists
+    if os.path.exists(playbook_record):
+        with open(playbook_record, "r") as f:
+            playbook_records = json.load(f)
+    else:
+        playbook_records = []
+    embedding = vision.get_embedding(objective)
+    playbook_records.append({
+        "objective": objective,
+        "playbookFile": playbookFileName,
+        "embedding": embedding,
+    })
+    with open(playbook_record, "w") as f:
+        json.dump(playbook_records, f)
 
 # Opens todoist and performs login
 def initTodoistFresh(): 
@@ -110,7 +127,8 @@ def classicMode():
     # The classic mode of the Vimbot
     print("Starting the Vimbot in classic mode...")
     objective = input("Please enter your objective: ")
-    result = main("todoist", objective)
+    completion_condition = input("Please enter your the completion condition: ")
+    result = main("todoist", objective, completion_condition)
     if isinstance(result, dict):
         return result
     else:
@@ -118,11 +136,27 @@ def classicMode():
     
 def replay_history():
     # replay the history
-    with open("playbook.json", "r") as f:
-        playbook_steps = json.load(f)
+    objective = input("Please enter your objective: ")
+    playbook = get_play_book(objective)
+    if not playbook:
+        print("No playbook found for the given objective")
+        return
+    with open(playbook['playbookFile'], "r") as f:
+        playbook_record = json.load(f)
+    adjusted_playbook = vision.adjust_playbook(playbook_record, playbook['objective'], objective)
     driver = initTodoist()
-    for action in playbook_steps:
+    for action in adjusted_playbook:
         driver.perform_action(action)
+        
+def get_play_book(objective):
+    # get the playbooks
+    with open("playbook_record.json", "r") as f:
+        playbook_records = json.load(f)
+    # return playbook_records[0]
+    playbookIndex = vision.recommendations_from_strings(list(map(lambda x: x["embedding"], playbook_records)), objective)
+    if playbookIndex:
+        return playbook_records[playbookIndex]
+    return None
 
 
 if __name__ == "__main__":

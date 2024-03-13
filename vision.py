@@ -5,9 +5,12 @@ from io import BytesIO
 
 import openai
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionAssistantMessageParam
+import numpy as np
+
 from dotenv import load_dotenv
 from PIL import Image
 from typing import List
+from scipy import spatial
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -121,6 +124,82 @@ def fix_response(badResponse):
         print("Error: Invalid JSON response" + json.dumps(cleaned_response.choices))
         return {}
     return cleaned_json_response
+
+def adjust_playbook(playbook, original_objective, incoming_objective):
+    prompt = f'''
+    This playbook was generated for the following objective {original_objective}.
+    The playbook is: {playbook}.
+    Adjust the playbook for the new objective: {incoming_objective}.
+    You are not allowed to add or remove any new actions to the playbook.
+    You may not change any of the keys in the playbook, only the values.
+    Return it as a valid JSON array.
+    '''
+    response = openai.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{
+            "role": "user",
+            "content": prompt,
+        }],
+    )
+
+    print(f"Response: {response}")
+
+    try:
+        json_response = json.loads(response.choices[0].message.content)
+    except json.JSONDecodeError:
+        print("Error: Invalid JSON response" + str(response.choices))
+        json_response = fix_response(response.choices[0].message.content)
+        
+    return json_response
+
+def recommendations_from_strings(
+   playbook_objectives_embeddings: List[List[float]],
+   incoming_objective: str,
+) -> int | None:
+   """Return nearest neighbors of a given string."""
+   embedding_for_incoming_objective = get_embedding(incoming_objective)
+
+   # get distances between the source embedding and other embeddings (function from embeddings_utils.py)
+   distances = distances_from_embeddings(embedding_for_incoming_objective, playbook_objectives_embeddings, distance_metric="cosine")
+
+   # get indices of nearest neighbors (function from embeddings_utils.py)
+   indices_of_nearest_neighbors = indices_of_nearest_neighbors_from_distances(distances, 0.5)
+   return indices_of_nearest_neighbors[0] if indices_of_nearest_neighbors else None
+
+def distances_from_embeddings(
+    query_embedding: List[float],
+    embeddings: List[List[float]],
+    distance_metric="cosine",
+) -> List[float]:
+    """Return the distances between a query embedding and a list of embeddings."""
+    distance_metrics = {
+        "cosine": spatial.distance.cosine,
+        "L1": spatial.distance.cityblock,
+        "L2": spatial.distance.euclidean,
+        "Linf": spatial.distance.chebyshev,
+    }
+    distances = [
+        distance_metrics[distance_metric](query_embedding, embedding)
+        for embedding in embeddings
+    ]
+    return distances
+
+def indices_of_nearest_neighbors_from_distances(distances: List[float], max_distance: float) -> List[int]:
+    """Return a list of indices of nearest neighbors from a list of distances."""
+    # Sort distances and get their indices
+    sorted_indices = sorted(range(len(distances)), key=lambda i: distances[i])
+    
+    # Filter indices based on max_distance
+    filtered_indices = [i for i in sorted_indices if distances[i] <= max_distance]
+    
+    return filtered_indices
+
+def get_embedding(str: str):
+    embedding = openai.embeddings.create(
+        input=str,
+        model="text-embedding-3-small",
+    )
+    return embedding.data[0].embedding
 
 if __name__ == "__main__":
     image = Image.open("image.png")

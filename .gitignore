@@ -5,4 +5,4 @@ screenshot*
 vimGPT/
 .env
 __pycache__/
-playbook.json
+playbook*.json
