@@ -35,7 +35,7 @@ def build_initial_prompt(objective, completion_condition, current_url):
     example_type_click = json.dumps({"click": "A", "type": "text", "description": "type text in textbox"})
     example_navigation = json.dumps({"navigate": "https://www.example.com", "description": "navigate to example.com"})
     example_done = json.dumps({"done": None})
-    example_result = json.dumps({"queryResult": [{"title": "some title"}, {"description": "some description"}]})
+    example_result = json.dumps({"result": [{"title": "some title"}, {"description": "some description"}]})
     example_scroll = json.dumps({"scroll": "down", "description": "scroll down"})
     return f'''
     Given the image of a website, your objective is: {objective} and the completion condition is: {completion_condition}. You are currently on the website: {current_url}.
@@ -46,7 +46,7 @@ def build_initial_prompt(objective, completion_condition, current_url):
     If you think the interesting part of the website is not visible, you can scroll down or up. For scrolling: {example_scroll}.
     For results: {example_result}. The title and description are strings. Description is optional.
     When there are multiple valid options, pick the best one. If the objective is complete, return { example_done } if the original objective was an action or return { example_result } if the original objective was a query. Remember to only output valid JSON objects. that match the schema. The description field in each example is a simple description of what action is intended to be performed. 
-    The result I want from you is a valid JSON object.
+    The result I want from you is a valid JSON object. The JSON object must ONLY contain the keys "click", "type", "navigate", "done", "result", or "scroll" and the values must match the examples given.
     Do not return the JSON inside a code block. Only return 1 object.
     '''
 
@@ -135,13 +135,13 @@ def adjust_playbook(playbook, original_objective, incoming_objective):
 
 def query_screenshot(screenshot: Image, objective):
     encoded_screenshot = encode_and_resize(screenshot)
-    example_result = json.dumps({"queryResult": [{"title": "some title"}, {"description": "some description"}]})
+    example_result = json.dumps({"result": [{"title": "some title"}, {"description": "some description"}]})
     prompt = f'''
     Given the image of this website, your objective is to: {objective}.
-    Return the result in {example_result} form only. The title and description are strings. Description is optional.
-    If you have no results, return null for the queryResult field.
+    Return the result in {example_result}. The title and description are strings. Description is optional.
+    If you have no results, return null for the result field.
     The result I want from you is a valid JSON object.
-    Do not return the JSON inside a code block. Only return 1 object with an array of "queryResult" objects.
+    Do not return the JSON inside a code block. Only return 1 object with an array of "result" objects.
     '''
     _, json_response = query_open_ai_for_json([{
         "role": "user",

@@ -33,7 +33,7 @@ class Vimbot:
         print(f"Performing action: {action}")
         if "done" in action:
             return True
-        if "queryResult" in action:
+        if "result" in action:
             return action
         if "click" in action and "type" in action:
             if "clicked_element" in action:
