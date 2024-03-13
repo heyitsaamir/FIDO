@@ -3,13 +3,17 @@ import time
 import os
 
 import vision
+from embedding import get_embedding, recommendations_from_strings
 from vimbot import Vimbot
 
 from flask import Flask, request
 from typing import Literal, Union, List
-from PIL import Image
 import json
 
+from dotenv import load_dotenv
+
+load_dotenv()
+is_playbook_recording_enabled = os.getenv("PWDEBUG", "0") == "1"
 
 def main(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: str = "When the objective seems complete"):
     print("Initializing the Vimbot driver...")
@@ -36,20 +40,23 @@ def main(website: Union[Literal['todoist'], Literal['google']], objective: str, 
         print("Getting actions for the given objective...")
         current_url = driver.get_current_url()
         action = vision.get_actions(screenshot, objective, completion_condition, current_url, history)
-        focused_element = driver.focus(action)
-        print(f"Focused element: {focused_element}")
-        if focused_element:
-            history_item = action.copy()
-            history_item['clicked_element'] = focused_element
-            playbook_steps.append(history_item)
-        else:
-            playbook_steps.append(action)
+        addPlaybookStep(driver, action, playbook_steps)
         perform_action_result = driver.perform_action(action)
         if perform_action_result:
             result = perform_action_result
             break
     savePlaybook(playbook_steps, objective)
     return result
+
+def addPlaybookStep(driver, action, playbook_steps):
+    if is_playbook_recording_enabled:
+        focused_element = driver.focus(action)
+        if focused_element:
+            history_item = action.copy()
+            history_item['clicked_element'] = focused_element
+            playbook_steps.append(history_item)
+        else:
+            playbook_steps.append(action)
 
 def savePlaybook(playbook_steps, objective):
     playbookFileName = "playbook_" + str(int(time.time())) + ".json"
@@ -62,7 +69,7 @@ def savePlaybook(playbook_steps, objective):
             playbook_records = json.load(f)
     else:
         playbook_records = []
-    embedding = vision.get_embedding(objective)
+    embedding = get_embedding(objective)
     playbook_records.append({
         "objective": objective,
         "playbookFile": playbookFileName,
@@ -153,8 +160,8 @@ def get_play_book(objective):
     with open("playbook_record.json", "r") as f:
         playbook_records = json.load(f)
     # return playbook_records[0]
-    playbookIndex = vision.recommendations_from_strings(list(map(lambda x: x["embedding"], playbook_records)), objective)
-    if playbookIndex:
+    playbookIndex = recommendations_from_strings(list(map(lambda x: x["embedding"], playbook_records)), objective)
+    if playbookIndex is not None:
         return playbook_records[playbookIndex]
     return None
 
