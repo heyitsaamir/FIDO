@@ -9,9 +9,9 @@ vimium_path = "./vimium-master"
 
 class Vimbot:
     def __init__(self, headless=False):
+        self.playwright = sync_playwright().start()
         self.context = (
-            sync_playwright()
-            .start()
+            self.playwright
             .chromium.launch_persistent_context(
                 "/Users/aamirjawaid/Library/Application Support/Google/Chrome",
                 headless=headless,
@@ -25,12 +25,15 @@ class Vimbot:
 
         self.page = self.context.new_page()
         self.page.set_viewport_size({"width": 760, "height": 844})
+        
+    def close(self):
+        self.playwright.stop()
 
     def perform_action(self, action):
         print(f"Performing action: {action}")
         if "done" in action:
             return True
-        if "result" in action:
+        if "queryResult" in action:
             return action
         if "click" in action and "type" in action:
             if "clicked_element" in action:
@@ -51,6 +54,7 @@ class Vimbot:
                 self.click(text=action["click"])
     
     def focus(self, action):
+        # Caveat: Focusing might change the original vimium shortcuts on the page
         if "click" in action:
             self.page.keyboard.press("Escape")
             self.page.keyboard.type("X")
@@ -91,6 +95,7 @@ class Vimbot:
         return self.page.url
     
     def get_active_element(self):
+        # Possible to get locator by playwright.generateLocator.
         return self.page.evaluate("window.playwright.selector(document.activeElement)")
 
     def capture(self):

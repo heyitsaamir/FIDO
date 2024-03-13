@@ -15,21 +15,9 @@ from dotenv import load_dotenv
 load_dotenv()
 is_playbook_recording_enabled = os.getenv("PWDEBUG", "0") == "1"
 
-def main(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: str = "When the objective seems complete"):
-    print("Initializing the Vimbot driver...")
-
-    init_functions = {
-        'todoist': initTodoist,
-        'google': initGoogle
-    }
-
-    # Call the appropriate function
-    if website in init_functions:
-        driver = init_functions[website]()
-    else:
-        driver = initNoWebsite()
-
-    input("Press Enter to continue...")
+def do_image_reasoning_work(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: str = "When the objective seems complete"):
+    driver = get_driver(website)
+    # input("Press Enter to continue...")
     history: List[str] = []
     playbook_steps = []
     result = None
@@ -46,6 +34,27 @@ def main(website: Union[Literal['todoist'], Literal['google']], objective: str, 
             result = perform_action_result
             break
     savePlaybook(playbook_steps, objective)
+    close_driver(driver)
+    return result
+    
+def replay_history(website: Union[Literal['todoist'], Literal['google']], objective: str,):
+    playbook = get_play_book(objective)
+    if not playbook:
+        print("No playbook found for the given objective")
+        return None
+    with open(playbook['playbookFile'], "r") as f:
+        playbook_record = json.load(f)
+    adjusted_playbook = vision.adjust_playbook(playbook_record, playbook['objective'], objective)
+    driver = get_driver(website)
+    result = None
+    print("Adjusted playbook: ", adjusted_playbook)
+    for action in adjusted_playbook:
+        if "queryResult" in action:
+            time.sleep(1) # wait for the page to be visible before taking a screenshot
+            screenshot = driver.capture()
+            action = vision.query_screenshot(screenshot=screenshot, objective=objective)
+        result = driver.perform_action(action)
+    close_driver(driver)
     return result
 
 def addPlaybookStep(driver, action, playbook_steps):
@@ -77,6 +86,36 @@ def savePlaybook(playbook_steps, objective):
     })
     with open(playbook_record, "w") as f:
         json.dump(playbook_records, f)
+        
+def get_play_book(objective):
+    # get the playbooks
+    with open("playbook_record.json", "r") as f:
+        playbook_records = json.load(f)
+    # return playbook_records[0]
+    playbookIndex = recommendations_from_strings(list(map(lambda x: x["embedding"], playbook_records)), objective)
+    if playbookIndex is not None:
+        return playbook_records[playbookIndex]
+    return None
+
+def get_driver(website: Union[Literal['todoist'], Literal['google']]):
+    print("Initializing the Vimbot driver...")
+
+    init_functions = {
+        'todoist': initTodoist,
+        'google': initGoogle
+    }
+
+    # Call the appropriate function
+    if website in init_functions:
+        driver = init_functions[website]()
+    else:
+        driver = initNoWebsite()
+    return driver
+
+def close_driver(driver: Vimbot):
+    print("Closing the Vimbot driver...")
+    time.sleep(2) # todoist needs a little time to save the changes
+    driver.close()
 
 # Opens todoist and performs login
 def initTodoistFresh(): 
@@ -91,8 +130,8 @@ def initTodoistFresh():
 def initTodoist(): 
     driver = Vimbot()
     driver.navigate("https://app.todoist.com")
+    driver.page.wait_for_selector('header')
     driver.page.wait_for_selector('button[aria-controls="sidebar"]')
-    driver.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
     return driver
 
 def initNoWebsite(): 
@@ -123,59 +162,41 @@ def run():
     # website = data.get("website")
 
     print(f"Received request to run the Vimbot with prompt: {prompt} and completion_condition: {completion_condition}")
-    result = main("google", prompt, completion_condition)
+    # result = do_image_reasoning_work("google", prompt, completion_condition)
+    result = replay_history("todoist", prompt)
     # if result is a json, return it as is, otherwise return it as a string
     if isinstance(result, dict):
         return result
     else:
         return {"result": result}
 
-def classicMode():
+def classic_mode():
     # The classic mode of the Vimbot
     print("Starting the Vimbot in classic mode...")
     objective = input("Please enter your objective: ")
     completion_condition = input("Please enter your the completion condition: ")
-    result = main("todoist", objective, completion_condition)
+    result = do_image_reasoning_work("todoist", objective, completion_condition)
     if isinstance(result, dict):
         return result
     else:
         return {"result": result}
     
-def replay_history():
-    # replay the history
+def replay_mode():
+    # The replay mode of the Vimbot
+    print("Starting the Vimbot in replay mode...")
     objective = input("Please enter your objective: ")
-    playbook = get_play_book(objective)
-    if not playbook:
-        print("No playbook found for the given objective")
-        return
-    with open(playbook['playbookFile'], "r") as f:
-        playbook_record = json.load(f)
-    adjusted_playbook = vision.adjust_playbook(playbook_record, playbook['objective'], objective)
-    driver = initTodoist()
-    for action in adjusted_playbook:
-        driver.perform_action(action)
-        
-def get_play_book(objective):
-    # get the playbooks
-    with open("playbook_record.json", "r") as f:
-        playbook_records = json.load(f)
-    # return playbook_records[0]
-    playbookIndex = recommendations_from_strings(list(map(lambda x: x["embedding"], playbook_records)), objective)
-    if playbookIndex is not None:
-        return playbook_records[playbookIndex]
-    return None
-
+    replay_history("todoist", objective)
 
 if __name__ == "__main__":
-    # if classic mode is supplied, then run classicMode otherwise run the server
+    # if classic mode is supplied, then run classic_mode otherwise run the server
     parser = argparse.ArgumentParser()
     parser.add_argument("--classic", action="store_true")
     parser.add_argument("--replay", action="store_true")
     args = parser.parse_args()
     if args.classic:
-        classicMode()
+        classic_mode()
     elif args.replay:
-        replay_history()
+        replay_mode()
     else:
         print("Starting the Flask server...")
         app.run(host="0.0.0.0", port=8000)

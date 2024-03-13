@@ -4,21 +4,25 @@ import os
 from io import BytesIO
 
 import openai
-from openai.types.chat import ChatCompletionMessageParam, ChatCompletionAssistantMessageParam
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionAssistantMessageParam, ChatCompletion
 import numpy as np
 
 from dotenv import load_dotenv
-from PIL import Image
+from PIL.Image import Image
 from typing import List
 from scipy import spatial
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
-IMG_RES = 1080
+IMG_RES = 760
 
+def resize_image(image: Image):
+    W, H = image.size
+    image = image.resize((IMG_RES, int(IMG_RES * H / W)))
+    return image
 
 # Function to encode the image
-def encode_and_resize(image):
+def encode_and_resize(image: Image):
     W, H = image.size
     image = image.resize((IMG_RES, int(IMG_RES * H / W)))
     buffer = BytesIO()
@@ -31,7 +35,7 @@ def build_initial_prompt(objective, completion_condition, current_url):
     example_type_click = json.dumps({"click": "A", "type": "text", "description": "type text in textbox"})
     example_navigation = json.dumps({"navigate": "https://www.example.com", "description": "navigate to example.com"})
     example_done = json.dumps({"done": None})
-    example_result = json.dumps({"result": [{"title": "some title"}, {"description": "some description"}]})
+    example_result = json.dumps({"queryResult": [{"title": "some title"}, {"description": "some description"}]})
     example_scroll = json.dumps({"scroll": "down", "description": "scroll down"})
     return f'''
     Given the image of a website, your objective is: {objective} and the completion condition is: {completion_condition}. You are currently on the website: {current_url}.
@@ -43,13 +47,13 @@ def build_initial_prompt(objective, completion_condition, current_url):
     For results: {example_result}. The title and description are strings. Description is optional.
     When there are multiple valid options, pick the best one. If the objective is complete, return { example_done } if the original objective was an action or return { example_result } if the original objective was a query. Remember to only output valid JSON objects. that match the schema. The description field in each example is a simple description of what action is intended to be performed. 
     The result I want from you is a valid JSON object.
-    Do not return the JSON inside a code block. Only return 1 object at a given time.
+    Do not return the JSON inside a code block. Only return 1 object.
     '''
 
 def build_subsequent_prompt(current_url):
     return f'What should the next action be? You are currently on the website: {current_url}.'
 
-def get_actions(screenshot, objective, completion_condition, current_url, prompt_history: List[str]):
+def get_actions(screenshot: Image, objective, completion_condition, current_url, prompt_history: List[str]):
     encoded_screenshot = encode_and_resize(screenshot)
     # if prompt_history is empty
     if not prompt_history:
@@ -87,20 +91,8 @@ def get_actions(screenshot, objective, completion_condition, current_url, prompt
         messages.append(next_message)
 
     print(f"Prompt: {prompt}")
-    response = openai.chat.completions.create(
-        model="gpt-4-vision-preview",
-        messages=messages,
-        max_tokens=130,
-    )
-
-    print(f"Response: {response}")
-
-    try:
-        json_response = json.loads(response.choices[0].message.content)
-    except json.JSONDecodeError:
-        print("Error: Invalid JSON response" + str(response.choices))
-        json_response = fix_response(response.choices[0].message.content)
-
+    response, json_response = query_open_ai_for_json(messages, "gpt-4-vision-preview")
+    
     if not prompt_history:
         prompt_history.append(prompt)
 
@@ -134,12 +126,52 @@ def adjust_playbook(playbook, original_objective, incoming_objective):
     You may not change any of the keys in the playbook, only the values.
     Return it as a valid JSON array.
     '''
+    _, json_response = query_open_ai_for_json([{
+        "role": "user",
+        "content": prompt,
+    }], "gpt-3.5-turbo")
+        
+    return json_response
+
+def query_screenshot(screenshot: Image, objective):
+    encoded_screenshot = encode_and_resize(screenshot)
+    example_result = json.dumps({"queryResult": [{"title": "some title"}, {"description": "some description"}]})
+    prompt = f'''
+    Given the image of this website, your objective is to: {objective}.
+    Return the result in {example_result} form only. The title and description are strings. Description is optional.
+    If you have no results, return null for the queryResult field.
+    The result I want from you is a valid JSON object.
+    Do not return the JSON inside a code block. Only return 1 object with an array of "queryResult" objects.
+    '''
+    _, json_response = query_open_ai_for_json([{
+        "role": "user",
+        "content": [
+            {
+                "type": "text",
+                "text": prompt,
+            },
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{encoded_screenshot}",
+                },
+            }
+        ],
+        }], "gpt-4-vision-preview")
+    
+    if ("result" in json_response and not json_response["result"]) \
+        or ("message" in json_response):
+        # save screenshot
+        screenshot.save("screenshot.png")
+        
+    
+    return json_response
+
+def query_open_ai_for_json(messages: List[ChatCompletionMessageParam], model, max_tokens=130) -> tuple[ChatCompletion, dict]:
     response = openai.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{
-            "role": "user",
-            "content": prompt,
-        }],
+        model=model,
+        messages=messages,
+        max_tokens=max_tokens,
     )
 
     print(f"Response: {response}")
@@ -150,4 +182,4 @@ def adjust_playbook(playbook, original_objective, incoming_objective):
         print("Error: Invalid JSON response" + str(response.choices))
         json_response = fix_response(response.choices[0].message.content)
         
-    return json_response
+    return response, json_response
