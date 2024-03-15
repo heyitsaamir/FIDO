@@ -41,7 +41,7 @@ def build_initial_prompt(objective, completion_condition, current_url):
     Given the image of a website, your objective is: {objective} and the completion condition is: {completion_condition}. You are currently on the website: {current_url}.
     You have access to the following schema:
     For navigation to a different website: {example_navigation}.
-    For clicking: {example_click}. The value for clicks is a 1-2 letter sequence found within a yellow box. 
+    For clicking: {example_click}. The value for clicks is a 1-2 letter sequence found within a yellow box on top left of the item you want to click. 
     For typing: {example_type_click}. For text input fields, first click on the input field (described by a 1-2 letter sequence in the yellow box) and then type the text.
     If you think the interesting part of the website is not visible, you can scroll down or up. For scrolling: {example_scroll}.
     For results: {example_result}. The title and description are strings. Description is optional.
