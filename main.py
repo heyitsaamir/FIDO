@@ -37,11 +37,10 @@ def do_image_reasoning_work(website: Union[Literal['todoist'], Literal['google']
     close_driver(driver)
     return result
     
-def replay_history(website: Union[Literal['todoist'], Literal['google']], objective: str,):
-    playbook = get_play_book(objective)
+def replay_history(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition):
+    playbook = get_playbook(objective)
     if not playbook:
-        print("No playbook found for the given objective")
-        return None
+        return do_image_reasoning_work(website, objective, completion_condition)
     with open(playbook['playbookFile'], "r") as f:
         playbook_record = json.load(f)
     adjusted_playbook = vision.adjust_playbook(playbook_record, playbook['objective'], objective)
@@ -51,7 +50,7 @@ def replay_history(website: Union[Literal['todoist'], Literal['google']], object
     for action in adjusted_playbook:
         if "result" in action:
             time.sleep(1) # wait for the page to be visible before taking a screenshot
-            screenshot = driver.capture()
+            screenshot = driver.capture(False)
             action = vision.query_screenshot(screenshot=screenshot, objective=objective)
         result = driver.perform_action(action)
     close_driver(driver)
@@ -87,7 +86,7 @@ def savePlaybook(playbook_steps, objective):
     with open(playbook_record, "w") as f:
         json.dump(playbook_records, f)
         
-def get_play_book(objective):
+def get_playbook(objective):
     # get the playbooks
     with open("playbook_record.json", "r") as f:
         playbook_records = json.load(f)
@@ -96,6 +95,13 @@ def get_play_book(objective):
     if playbookIndex is not None:
         return playbook_records[playbookIndex]
     return None
+
+def reset_playbook():
+    # if there is no playbook_record.json, then return
+    # if there is one, then reset it to an empty array
+    if os.path.exists("playbook_record.json"):
+        with open("playbook_record.json", "w") as f:
+            json.dump([], f)
 
 def get_driver(website: Union[Literal['todoist'], Literal['google']]):
     print("Initializing the Vimbot driver...")
@@ -163,7 +169,7 @@ def run():
 
     print(f"Received request to run the Vimbot with prompt: {prompt} and completion_condition: {completion_condition}")
     # result = do_image_reasoning_work("google", prompt, completion_condition)
-    result = replay_history("todoist", prompt)
+    result = replay_history("todoist", prompt, completion_condition)
     # if result is a json, return it as is, otherwise return it as a string
     if isinstance(result, dict):
         return result
@@ -185,18 +191,21 @@ def replay_mode():
     # The replay mode of the Vimbot
     print("Starting the Vimbot in replay mode...")
     objective = input("Please enter your objective: ")
-    replay_history("todoist", objective)
+    replay_history("todoist", objective, "When the objective seems complete")
 
 if __name__ == "__main__":
     # if classic mode is supplied, then run classic_mode otherwise run the server
     parser = argparse.ArgumentParser()
     parser.add_argument("--classic", action="store_true")
     parser.add_argument("--replay", action="store_true")
+    parser.add_argument("--reset", action="store_true")
     args = parser.parse_args()
     if args.classic:
         classic_mode()
     elif args.replay:
         replay_mode()
+    elif args.reset:
+        reset_playbook()
     else:
         print("Starting the Flask server...")
         app.run(host="0.0.0.0", port=8000)

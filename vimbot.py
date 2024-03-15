@@ -77,12 +77,11 @@ class Vimbot:
 
     def click(self, text):
         self.page.keyboard.type(text)
+        self.page = self.context.pages[-1]
 
-    def reset(self, withPause: bool = False):
+    def reset(self, withVimBindings: bool = True):
         self.page.keyboard.press("Escape")
         self.page.keyboard.type("f")
-        if withPause:
-            time.sleep(1)
 
     def scroll(self, direction):
         self.page.keyboard.press("Escape")
@@ -98,8 +97,8 @@ class Vimbot:
         # Possible to get locator by playwright.generateLocator.
         return self.page.evaluate("window.playwright.selector(document.activeElement)")
 
-    def capture(self):
+    def capture(self, withVimBindings: bool = True):
         # capture a screenshot with vim bindings on the screen
-        self.reset()
+        self.reset(withVimBindings)
         screenshot = Image.open(BytesIO(self.page.screenshot())).convert("RGB")
         return screenshot
