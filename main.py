@@ -58,10 +58,10 @@ def replay_history(website: Union[Literal['todoist'], Literal['google']], object
 
 def addPlaybookStep(driver, action, playbook_steps):
     if is_playbook_recording_enabled:
-        focused_element = driver.focus(action)
-        if focused_element:
+        selector = driver.get_selector(action)
+        if selector:
             history_item = action.copy()
-            history_item['clicked_element'] = focused_element
+            history_item['clicked_element'] = selector
             playbook_steps.append(history_item)
         else:
             playbook_steps.append(action)

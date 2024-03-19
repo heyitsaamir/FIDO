@@ -6,7 +6,6 @@ from playwright.sync_api import sync_playwright
 
 vimium_path = "./vimium-master"
 
-
 class Vimbot:
     def __init__(self, headless=False):
         self.playwright = sync_playwright().start()
@@ -53,19 +52,20 @@ class Vimbot:
             else:
                 self.click(text=action["click"])
     
-    def focus(self, action):
-        # Caveat: Focusing might change the original vimium shortcuts on the page
+    def get_selector(self, action) -> str | None:
         if "click" in action:
-            self.page.keyboard.press("Escape")
-            self.page.keyboard.type("X")
-            time.sleep(1)
-            print(f"Clicking on {action['click']}")
-            self.click(action["click"])
-            time.sleep(1)
-            focusedElement = self.get_active_element()
-            self.page.keyboard.type("f")
-            time.sleep(1)
-            return focusedElement
+            xpath = self.get_x_path(action["click"])
+            locator = self.page.locator(f"xpath={xpath}")
+            handle = locator.element_handle()
+            res = self.page.evaluate('''
+                (handle) => {
+                    return {
+                        selector: window.playwright.selector(handle),
+                        locator: window.playwright.generateLocator(handle),
+                    }
+                }''', handle)
+            
+            return res['selector']
 
     def navigate(self, url):
         self.page.goto(url=url if "://" in url else "https://" + url, timeout=60000)
@@ -74,14 +74,40 @@ class Vimbot:
         time.sleep(1)
         self.page.keyboard.type(text)
         # self.page.keyboard.press("Enter")
+        
+    def get_x_path(self, shortcut) -> str:
+        return self.page.evaluate('''
+            (shortcut) => {
+                function findXPath(hintText) {
+                    const container = document.getElementById('vimiumHintMarkerContainer')
+                    if (!container) {
+                        return null
+                    }
+                    for (let i = 0; i < container.children.length; i++) {
+                        const hint = container.children[i]
+                        if (hint.innerText === hintText) {
+                            return hint.getAttribute('data-xpath')
+                        }
+                    }
+                }
+                
+                return findXPath(shortcut)
+            }            
+            ''', shortcut)
 
     def click(self, text):
-        self.page.keyboard.type(text)
+        xpath = self.get_x_path(text)
+        locator = self.page.locator(f"xpath={xpath}")
+        locator.click()
         self.page = self.context.pages[-1]
 
-    def reset(self, withVimBindings: bool = True):
-        self.page.keyboard.press("Escape")
-        self.page.keyboard.type("f")
+    def showHints(self, withVimBindings: bool = True):
+        self.page.evaluate('''
+                           () => {
+                               const data = { type: "ACTIVATE_VIMIUM", text: "Activate_Vimium" };
+                               window.postMessage(data, "*");
+                           }
+                           ''')
 
     def scroll(self, direction):
         self.page.keyboard.press("Escape")
@@ -99,6 +125,6 @@ class Vimbot:
 
     def capture(self, withVimBindings: bool = True):
         # capture a screenshot with vim bindings on the screen
-        self.reset(withVimBindings)
+        self.showHints(withVimBindings)
         screenshot = Image.open(BytesIO(self.page.screenshot())).convert("RGB")
         return screenshot
