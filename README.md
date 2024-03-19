@@ -7,7 +7,7 @@ Based off of https://github.com/ishan0102/vimGPT
 OPENAI_API_KEY=
 PWDEBUG=1
 ```
-PWDDEBUG launches playwright in debug mode so we can inspect the selectors (for the playbook)
+`PWDDEBUG` launches playwright in debug mode so we can inspect the selectors (for the playbook). If you don't set this value, playbook recording features won't work (and that's ok)
 
 ### Browser modifications
 The vimium extension has this custom mapping:
