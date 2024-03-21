@@ -1,0 +1,9 @@
+{
+    "python.analysis.inlayHints.callArgumentNames": "all",
+    "python.analysis.inlayHints.functionReturnTypes": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "[python]": {
+        "editor.defaultFormatter": null
+    },
+    "editor.defaultFormatter": "ms-python.autopep8"
+}

@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 is_playbook_recording_enabled = os.getenv("PWDEBUG", "0") == "1"
 
+
 def do_image_reasoning_work(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: str = "When the objective seems complete"):
     driver = get_driver(website)
     # input("Press Enter to continue...")
@@ -27,7 +28,8 @@ def do_image_reasoning_work(website: Union[Literal['todoist'], Literal['google']
         screenshot = driver.capture()
         print("Getting actions for the given objective...")
         current_url = driver.get_current_url()
-        action = perception.get_actions(screenshot, objective, completion_condition, current_url, history)
+        action = perception.get_actions(
+            screenshot, objective, completion_condition, current_url, history)
         addPlaybookStep(driver, action, playbook_steps)
         perform_action_result = driver.perform_action(action)
         if perform_action_result:
@@ -36,25 +38,30 @@ def do_image_reasoning_work(website: Union[Literal['todoist'], Literal['google']
     savePlaybook(playbook_steps, objective)
     close_driver(driver)
     return result
-    
+
+
 def replay_history(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition):
     playbook = get_playbook(objective)
     if not playbook:
         return do_image_reasoning_work(website, objective, completion_condition)
     with open(playbook['playbookFile'], "r") as f:
         playbook_record = json.load(f)
-    adjusted_playbook = perception.adjust_playbook(playbook_record, playbook['objective'], objective)
+    adjusted_playbook = perception.adjust_playbook(
+        playbook_record, playbook['objective'], objective)
     driver = get_driver(website)
     result = None
     print("Adjusted playbook: ", adjusted_playbook)
     for action in adjusted_playbook:
         if "result" in action:
-            time.sleep(1) # wait for the page to be visible before taking a screenshot
+            # wait for the page to be visible before taking a screenshot
+            time.sleep(1)
             screenshot = driver.capture(False)
-            action = perception.query_screenshot(screenshot=screenshot, objective=objective)
+            action = perception.query_screenshot(
+                screenshot=screenshot, objective=objective)
         result = driver.perform_action(action)
     close_driver(driver)
     return result
+
 
 def addPlaybookStep(driver, action, playbook_steps):
     if is_playbook_recording_enabled:
@@ -65,6 +72,7 @@ def addPlaybookStep(driver, action, playbook_steps):
             playbook_steps.append(history_item)
         else:
             playbook_steps.append(action)
+
 
 def savePlaybook(playbook_steps, objective):
     playbookFileName = "playbook_" + str(int(time.time())) + ".json"
@@ -85,16 +93,19 @@ def savePlaybook(playbook_steps, objective):
     })
     with open(playbook_record, "w") as f:
         json.dump(playbook_records, f)
-        
+
+
 def get_playbook(objective):
     # get the playbooks
     with open("playbook_record.json", "r") as f:
         playbook_records = json.load(f)
     # return playbook_records[0]
-    playbookIndex = recommendations_from_strings(list(map(lambda x: x["embedding"], playbook_records)), objective)
+    playbookIndex = recommendations_from_strings(
+        list(map(lambda x: x["embedding"], playbook_records)), objective)
     if playbookIndex is not None:
         return playbook_records[playbookIndex]
     return None
+
 
 def reset_playbook():
     # if there is no playbook_record.json, then return
@@ -102,6 +113,7 @@ def reset_playbook():
     if os.path.exists("playbook_record.json"):
         with open("playbook_record.json", "w") as f:
             json.dump([], f)
+
 
 def get_driver(website: Union[Literal['todoist'], Literal['google']]):
     print("Initializing the Vimbot driver...")
@@ -118,29 +130,36 @@ def get_driver(website: Union[Literal['todoist'], Literal['google']]):
         driver = initNoWebsite()
     return driver
 
+
 def close_driver(driver: BrowserAgent):
     print("Closing the Vimbot driver...")
-    time.sleep(2) # todoist needs a little time to save the changes
+    time.sleep(2)  # todoist needs a little time to save the changes
     driver.close()
 
 # Opens todoist and performs login
-def initTodoistFresh(): 
+
+
+def initTodoistFresh():
     driver = BrowserAgent()
     driver.navigate("https://app.todoist.com/auth/login")
-    driver.page.type('input[type="email"]', os.getenv("TODOIST_USER")) # type: ignore
-    driver.page.type('input[type="password"]', os.getenv("TODOIST_PASSWORD")) # type: ignore
+    driver.page.type('input[type="email"]', os.getenv(
+        "TODOIST_USER"))  # type: ignore
+    driver.page.type('input[type="password"]', os.getenv(
+        "TODOIST_PASSWORD"))  # type: ignore
     driver.page.click('button[type="submit"]')
     driver.page.wait_for_selector('button[aria-controls="sidebar"]')
     return driver
 
-def initTodoist(): 
+
+def initTodoist():
     driver = BrowserAgent()
     driver.navigate("https://app.todoist.com")
     driver.page.wait_for_selector('header')
     driver.page.wait_for_selector('button[aria-controls="sidebar"]')
     return driver
 
-def initNoWebsite(): 
+
+def initNoWebsite():
     driver = BrowserAgent()
     return driver
 
@@ -153,12 +172,14 @@ def initGoogle():
 
 app = Flask(__name__)
 
+
 @app.route("/ping", methods=["POST"])
 def ping():
     # dummy function to test the Flask server
     print("Received request to ping the Vimbot")
     # return some dummy response as json
     return {"status": "success"}
+
 
 @app.route("/run", methods=["POST"])
 def run():
@@ -167,7 +188,8 @@ def run():
     completion_condition = data.get("completion_condition")
     # website = data.get("website")
 
-    print(f"Received request to run the Vimbot with prompt: {prompt} and completion_condition: {completion_condition}")
+    print(
+        f"Received request to run the Vimbot with prompt: {prompt} and completion_condition: {completion_condition}")
     # result = do_image_reasoning_work("google", prompt, completion_condition)
     result = replay_history("todoist", prompt, completion_condition)
     # if result is a json, return it as is, otherwise return it as a string
@@ -176,22 +198,27 @@ def run():
     else:
         return {"result": result}
 
+
 def classic_mode():
     # The classic mode of the Vimbot
     print("Starting the Vimbot in classic mode...")
     objective = input("Please enter your objective: ")
-    completion_condition = input("Please enter your the completion condition: ")
-    result = do_image_reasoning_work("todoist", objective, completion_condition)
+    completion_condition = input(
+        "Please enter your the completion condition: ")
+    result = do_image_reasoning_work(
+        "todoist", objective, completion_condition)
     if isinstance(result, dict):
         return result
     else:
         return {"result": result}
-    
+
+
 def replay_mode():
     # The replay mode of the Vimbot
     print("Starting the Vimbot in replay mode...")
     objective = input("Please enter your objective: ")
     replay_history("todoist", objective, "When the objective seems complete")
+
 
 if __name__ == "__main__":
     # if classic mode is supplied, then run classic_mode otherwise run the server

@@ -7,12 +7,15 @@ from dataclasses import dataclass
 
 vimium_path = "./vimium-master"
 
+
 @dataclass
 class PlaywrightLocatorResult:
     locator: Locator
     selector: str
+
     def __getitem__(self, item):
         return getattr(self, item)
+
 
 class BrowserAgent:
     def __init__(self, headless=False):
@@ -32,7 +35,7 @@ class BrowserAgent:
 
         self.page = self.context.new_page()
         self.page.set_viewport_size({"width": 760, "height": 844})
-        
+
     def close(self):
         self.playwright.stop()
 
@@ -59,7 +62,7 @@ class BrowserAgent:
                 self.page.locator(action["clicked_element"]).click()
             else:
                 self.click(text=action["click"])
-    
+
     def get_selector(self, action) -> str | None:
         if "click" in action:
             xpath = self.get_x_path(action["click"])
@@ -72,16 +75,18 @@ class BrowserAgent:
                         locator: window.playwright.generateLocator(handle),
                     }
                 }''', handle)
-            
+
             return res['selector']
 
     def navigate(self, url):
-        self.page.goto(url=url if "://" in url else "https://" + url, timeout=60000)
+        self.page.goto(
+            url=url if "://" in url else "https://" + url, timeout=60000)
 
     def type(self, text):
         time.sleep(1)
         self.page.keyboard.type(text)
         # self.page.keyboard.press("Enter")
+
     def get_x_path(self, shortcut) -> str:
         return self.page.evaluate('''
             (shortcut) => {
@@ -125,7 +130,7 @@ class BrowserAgent:
 
     def get_current_url(self):
         return self.page.url
-    
+
     def get_active_element(self):
         # Possible to get locator by playwright.generateLocator.
         return self.page.evaluate("window.playwright.selector(document.activeElement)")
