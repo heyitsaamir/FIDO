@@ -33,8 +33,22 @@ def encode_and_resize(image: Image):
     encoded_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return encoded_image
 
+def build_action_hint_str(possible_actions_hints: dict[str, str] | None) -> str:
+    if not possible_actions_hints:
+        return ""
+    hint_details = "\n".join(
+        [f"{k}: {v}" for k, v in possible_actions_hints.items()])
+    
+    return f'''
+For this screenshot, here are some hints for the possible hints in the image:
+{hint_details}
+'''
 
-def build_initial_prompt(objective: str, completion_condition: str, current_url: str, possible_actions_hints: dict[str, str]):
+def build_initial_prompt(
+    objective: str, 
+    completion_condition: str, 
+    current_url: str, 
+    possible_actions_hints: dict[str, str]):
     example_click = json.dumps(
         {"click": "A", "description": "click on the A button"})
     example_type_click = json.dumps(
@@ -47,38 +61,44 @@ def build_initial_prompt(objective: str, completion_condition: str, current_url:
     example_scroll = json.dumps(
         {"scroll": "down", "description": "scroll down"})
     return f'''
-    Given the image of a website, your objective is: {objective} and the completion condition is: {completion_condition}. You are currently on the website: {current_url}.
-    You have access to the following schema:
-    For navigation to a different website: {example_navigation}.
-    For clicking: {example_click}. The value for clicks is a 1-2 letter sequence found within a yellow box on top left of the item you want to click. 
-    For typing: {example_type_click}. For text input fields, first click on the input field (described by a 1-2 letter sequence in the yellow box) and then type the text.
-    If you think the interesting part of the website is not visible, you can scroll down or up. For scrolling: {example_scroll}.
-    For results: {example_result}. The title and description are strings. Description is optional.
-    When there are multiple valid options, pick the best one. If the objective is complete, return { example_done } if the original objective was an action or return { example_result } if the original objective was a query. Remember to only output valid JSON objects. that match the schema. The description field in each example is a simple description of what action is intended to be performed. 
-    The result I want from you is a valid JSON object. The JSON object must ONLY contain the keys "click", "type", "navigate", "done", "result", or "scroll" and the values must match the examples given.
-    Do not return the JSON inside a code block. Only return 1 object.
+Given the image of a website, your objective is: {objective} and the completion condition is: {completion_condition}. You are currently on the website: {current_url}.
+You have access to the following schema:
+For navigation to a different website: {example_navigation}.
+For clicking: {example_click}. The value for clicks is a 1-2 letter sequence found within a yellow box on top left of the item you want to click. 
+For typing: {example_type_click}. For text input fields, first click on the input field (described by a 1-2 letter sequence in the yellow box) and then type the text.
+If you think the interesting part of the website is not visible, you can scroll down or up. For scrolling: {example_scroll}.
+For results: {example_result}. The title and description are strings. Description is optional.
+When there are multiple valid options, pick the best one. If the objective is complete, return { example_done } if the original objective was an action or return { example_result } if the original objective was a query. Remember to only output valid JSON objects. that match the schema. The description field in each example is a simple description of what action is intended to be performed. 
+You only speak JSON. Do not write text that isn’t JSON. The JSON object must ONLY contain the keys "click", "type", "navigate", "done", "result", or "scroll" and the values must match the examples given.
+Do not return the JSON inside a code block. Only return 1 object.
     '''
 
 
-def build_subsequent_prompt(current_url):
-    return f'What should the next action be? You are currently on the website: {current_url}.'
+def build_subsequent_prompt(current_url, possible_actions_hints: dict[str, str]):
+    return f'''What should the next action be? You are currently on the website: {current_url}.
+'''
 
 
-def get_actions(screenshot: Image, objective: str, completion_condition: str, current_url: str, possible_actions_hints: dict[str, str], prompt_history: List[str]):
+def get_actions(screenshot: Image,
+                objective: str, 
+                completion_condition: str, 
+                current_url: str, 
+                possible_actions_hints: dict[str, str], 
+                prompt_history: List[str]):
     encoded_screenshot = encode_and_resize(screenshot)
     # if prompt_history is empty
     if not prompt_history:
-        prompt = build_initial_prompt(
+        next_prompt = build_initial_prompt(
             objective, completion_condition, current_url, possible_actions_hints)
     else:
-        prompt = build_subsequent_prompt(current_url)
+        next_prompt = build_subsequent_prompt(current_url, possible_actions_hints)
 
     next_message: ChatCompletionMessageParam = {
         "role": "user",
         "content": [
             {
                 "type": "text",
-                "text": prompt,
+                "text": next_prompt,
             },
             {
                 "type": "image_url",
@@ -102,12 +122,12 @@ def get_actions(screenshot: Image, objective: str, completion_condition: str, cu
             messages.append(message)
         messages.append(next_message)
 
-    print(f"Prompt: {prompt}")
+    print(f"Prompt: {next_prompt}")
     response, json_response = query_open_ai_for_json(
         messages, "gpt-4-vision-preview")
 
     if not prompt_history:
-        prompt_history.append(prompt)
+        prompt_history.append(next_prompt)
 
     prompt_history.append(response.choices[0].message.content)
     return json_response

@@ -85,7 +85,69 @@ class BrowserAgent:
     def type(self, text):
         time.sleep(1)
         self.page.keyboard.type(text)
-        # self.page.keyboard.press("Enter")
+
+    def click(self, text):
+        xpath = self.get_x_path(text)
+        self.hideHints()
+        locator = self.page.locator(f"xpath={xpath}")
+        locator.click(force=True)
+        self.page = self.context.pages[-1]
+
+    def showHints(self, withVimBindings: bool = True):
+        self.page.evaluate('''
+                           () => {
+                               const data = { type: "ACTIVATE_VIMIUM", text: "Activate_Vimium" };
+                               window.postMessage(data, "*");
+                           }
+                           ''')
+        
+    def hideHints(self, withVimBindings: bool = True):
+        self.page.evaluate('''
+                           () => {
+                               const data = { type: "DEACTIVATE_VIMIUM", text: "Deactivate_Vimium" };
+                               window.postMessage(data, "*");
+                           }
+                           ''')
+
+    def scroll(self, direction):
+        self.page.keyboard.press("Escape")
+        if direction == "down":
+            self.page.keyboard.type("d")
+        elif direction == "up":
+            self.page.keyboard.type("u")
+            
+    def get_x_paths_for_all_hints(self) -> dict[str, str]:
+        return self.page.evaluate('''
+            () => {
+                const container = document.getElementById('vimiumHintMarkerContainer')
+                if (!container) {
+                    return null
+                }
+                var xPaths = {};
+                for (let i = 0; i < container.children.length; i++) {
+                    const hint = container.children[i]
+                    if (!hint.getAttribute('data-xpath')) {
+                        continue;
+                    }
+                    const xPathResult = document.evaluate(hint.getAttribute('data-xpath'), document, null, XPathResult.ANY_TYPE, null);
+                    if (!xPathResult) {
+                        continue;
+                    }
+                    const element = xPathResult.iterateNext()
+                    const tagName = element.tagName.toLowerCase()
+                    const innerText = element.innerText
+                    let hintStrs = []
+                    if (tagName) {
+                        hintStrs.push(`type=${tagName}`)
+                    }
+                    if (innerText) {
+                        hintStrs.push(`text="${innerText}"`)
+                    }
+                    xPaths[hint.innerText] = hintStrs.join(' ');
+                }
+                return xPaths;
+            }
+            ''')
 
     def get_x_path(self, shortcut) -> str:
         return self.page.evaluate('''
@@ -107,33 +169,8 @@ class BrowserAgent:
             }            
             ''', shortcut)
 
-    def click(self, text):
-        xpath = self.get_x_path(text)
-        locator = self.page.locator(f"xpath={xpath}")
-        locator.click()
-        self.page = self.context.pages[-1]
-
-    def showHints(self, withVimBindings: bool = True):
-        self.page.evaluate('''
-                           () => {
-                               const data = { type: "ACTIVATE_VIMIUM", text: "Activate_Vimium" };
-                               window.postMessage(data, "*");
-                           }
-                           ''')
-
-    def scroll(self, direction):
-        self.page.keyboard.press("Escape")
-        if direction == "down":
-            self.page.keyboard.type("d")
-        elif direction == "up":
-            self.page.keyboard.type("u")
-
     def get_current_url(self):
         return self.page.url
-
-    def get_active_element(self):
-        # Possible to get locator by playwright.generateLocator.
-        return self.page.evaluate("window.playwright.selector(document.activeElement)")
 
     def capture(self, withVimBindings: bool = True):
         # capture a screenshot with vim bindings on the screen

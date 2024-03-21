@@ -26,10 +26,11 @@ def do_image_reasoning_work(website: Union[Literal['todoist'], Literal['google']
         time.sleep(1)
         print("Capturing the screen...")
         screenshot = driver.capture()
+        action_hints = driver.get_x_paths_for_all_hints()
         print("Getting actions for the given objective...")
         current_url = driver.get_current_url()
         action = perception.get_actions(
-            screenshot, objective, completion_condition, current_url, history)
+            screenshot, objective, completion_condition, current_url, action_hints, history)
         addPlaybookStep(driver, action, playbook_steps)
         perform_action_result = driver.perform_action(action)
         if perform_action_result:
