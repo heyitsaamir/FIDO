@@ -2,11 +2,19 @@ import time
 from io import BytesIO
 
 from PIL import Image
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, Locator
+from dataclasses import dataclass
 
 vimium_path = "./vimium-master"
 
-class Vimbot:
+@dataclass
+class PlaywrightLocatorResult:
+    locator: Locator
+    selector: str
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+class BrowserAgent:
     def __init__(self, headless=False):
         self.playwright = sync_playwright().start()
         self.context = (
@@ -57,7 +65,7 @@ class Vimbot:
             xpath = self.get_x_path(action["click"])
             locator = self.page.locator(f"xpath={xpath}")
             handle = locator.element_handle()
-            res = self.page.evaluate('''
+            res: PlaywrightLocatorResult = self.page.evaluate('''
                 (handle) => {
                     return {
                         selector: window.playwright.selector(handle),
@@ -74,7 +82,6 @@ class Vimbot:
         time.sleep(1)
         self.page.keyboard.type(text)
         # self.page.keyboard.press("Enter")
-        
     def get_x_path(self, shortcut) -> str:
         return self.page.evaluate('''
             (shortcut) => {

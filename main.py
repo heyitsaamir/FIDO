@@ -2,9 +2,9 @@ import argparse
 import time
 import os
 
-import vision
+import perception
 from embedding import get_embedding, recommendations_from_strings
-from vimbot import Vimbot
+from browserAgent import BrowserAgent
 
 from flask import Flask, request
 from typing import Literal, Union, List
@@ -27,7 +27,7 @@ def do_image_reasoning_work(website: Union[Literal['todoist'], Literal['google']
         screenshot = driver.capture()
         print("Getting actions for the given objective...")
         current_url = driver.get_current_url()
-        action = vision.get_actions(screenshot, objective, completion_condition, current_url, history)
+        action = perception.get_actions(screenshot, objective, completion_condition, current_url, history)
         addPlaybookStep(driver, action, playbook_steps)
         perform_action_result = driver.perform_action(action)
         if perform_action_result:
@@ -43,7 +43,7 @@ def replay_history(website: Union[Literal['todoist'], Literal['google']], object
         return do_image_reasoning_work(website, objective, completion_condition)
     with open(playbook['playbookFile'], "r") as f:
         playbook_record = json.load(f)
-    adjusted_playbook = vision.adjust_playbook(playbook_record, playbook['objective'], objective)
+    adjusted_playbook = perception.adjust_playbook(playbook_record, playbook['objective'], objective)
     driver = get_driver(website)
     result = None
     print("Adjusted playbook: ", adjusted_playbook)
@@ -51,7 +51,7 @@ def replay_history(website: Union[Literal['todoist'], Literal['google']], object
         if "result" in action:
             time.sleep(1) # wait for the page to be visible before taking a screenshot
             screenshot = driver.capture(False)
-            action = vision.query_screenshot(screenshot=screenshot, objective=objective)
+            action = perception.query_screenshot(screenshot=screenshot, objective=objective)
         result = driver.perform_action(action)
     close_driver(driver)
     return result
@@ -118,14 +118,14 @@ def get_driver(website: Union[Literal['todoist'], Literal['google']]):
         driver = initNoWebsite()
     return driver
 
-def close_driver(driver: Vimbot):
+def close_driver(driver: BrowserAgent):
     print("Closing the Vimbot driver...")
     time.sleep(2) # todoist needs a little time to save the changes
     driver.close()
 
 # Opens todoist and performs login
 def initTodoistFresh(): 
-    driver = Vimbot()
+    driver = BrowserAgent()
     driver.navigate("https://app.todoist.com/auth/login")
     driver.page.type('input[type="email"]', os.getenv("TODOIST_USER")) # type: ignore
     driver.page.type('input[type="password"]', os.getenv("TODOIST_PASSWORD")) # type: ignore
@@ -134,19 +134,19 @@ def initTodoistFresh():
     return driver
 
 def initTodoist(): 
-    driver = Vimbot()
+    driver = BrowserAgent()
     driver.navigate("https://app.todoist.com")
     driver.page.wait_for_selector('header')
     driver.page.wait_for_selector('button[aria-controls="sidebar"]')
     return driver
 
 def initNoWebsite(): 
-    driver = Vimbot()
+    driver = BrowserAgent()
     return driver
 
 
 def initGoogle():
-    driver = Vimbot()
+    driver = BrowserAgent()
     driver.navigate("https://www.google.com")
     return driver
 
