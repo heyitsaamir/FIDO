@@ -16,7 +16,7 @@ load_dotenv()
 is_playbook_recording_enabled = os.getenv("PWDEBUG", "0") == "1"
 
 
-def do_image_reasoning_work(website: Union[Literal['todoist'], Literal['google']], objective: str, completion_condition: str = "When the objective seems complete"):
+def do_image_reasoning_work(website: Union[Literal['todoist'], str], objective: str, completion_condition: str = "When the objective seems complete"):
     driver = get_driver(website)
     # input("Press Enter to continue...")
     history: List[str] = []
@@ -116,17 +116,19 @@ def reset_playbook():
             json.dump([], f)
 
 
-def get_driver(website: Union[Literal['todoist'], Literal['google']]):
+def get_driver(website: Union[Literal['todoist'], str]):
     print("Initializing the Vimbot driver...")
 
     init_functions = {
         'todoist': initTodoist,
-        'google': initGoogle
     }
 
     # Call the appropriate function
     if website in init_functions:
         driver = init_functions[website]()
+    # if website contains http, then it is a custom website and we should start iwth that
+    elif "http" in website:
+        driver = initCustomWebsite(website)
     else:
         driver = initNoWebsite()
     return driver
@@ -165,9 +167,9 @@ def initNoWebsite():
     return driver
 
 
-def initGoogle():
+def initCustomWebsite(websiteUrl: str):
     driver = BrowserAgent()
-    driver.navigate("https://www.google.com")
+    driver.navigate(websiteUrl)
     return driver
 
 
@@ -207,7 +209,7 @@ def classic_mode():
     completion_condition = input(
         "Please enter your the completion condition: ")
     result = do_image_reasoning_work(
-        "todoist", objective, completion_condition)
+        "https://google.com", objective, completion_condition)
     if isinstance(result, dict):
         return result
     else:

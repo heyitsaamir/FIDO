@@ -40,7 +40,7 @@ def build_action_hint_str(possible_actions_hints: dict[str, str] | None) -> str:
         [f"{k}: {v}" for k, v in possible_actions_hints.items()])
     
     return f'''
-For this screenshot, here are some hints for the possible hints in the image:
+For this screenshot, here are some details for the possible hints in the image. If the next step is to perform an action, then use these to help you determine which action to take.
 {hint_details}
 '''
 
@@ -71,11 +71,13 @@ For results: {example_result}. The title and description are strings. Descriptio
 When there are multiple valid options, pick the best one. If the objective is complete, return { example_done } if the original objective was an action or return { example_result } if the original objective was a query. Remember to only output valid JSON objects. that match the schema. The description field in each example is a simple description of what action is intended to be performed. 
 You only speak JSON. Do not write text that isn’t JSON. The JSON object must ONLY contain the keys "click", "type", "navigate", "done", "result", or "scroll" and the values must match the examples given.
 Do not return the JSON inside a code block. Only return 1 object.
+{build_action_hint_str(possible_actions_hints)}
     '''
 
 
 def build_subsequent_prompt(current_url, possible_actions_hints: dict[str, str]):
-    return f'''What should the next action be? You are currently on the website: {current_url}.
+    return f'''What should the next action or result be? You are currently on the website: {current_url}.
+{build_action_hint_str(possible_actions_hints)}
 '''
 
 

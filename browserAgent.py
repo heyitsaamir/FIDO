@@ -134,14 +134,46 @@ class BrowserAgent:
                         continue;
                     }
                     const element = xPathResult.iterateNext()
+                    if (!element) {
+                        continue;
+                    }
                     const tagName = element.tagName.toLowerCase()
                     const innerText = element.innerText
                     let hintStrs = []
                     if (tagName) {
-                        hintStrs.push(`type=${tagName}`)
+                        hintStrs.push(`type="${tagName}"`)
                     }
                     if (innerText) {
-                        hintStrs.push(`text="${innerText}"`)
+                        switch (tagName) {
+                            case 'body':
+                            case 'html':
+                                continue;
+                            case 'select': {
+                                const name = element.getAttribute('name');
+                                const optionText = [];
+                                for (let i = 0; i < element.options.length; i++) {
+                                    optionText.push(element.options[i].text);
+                                }
+                                const options = optionText.join(', ');
+                                if (name) {
+                                    hintStrs.push(`name="${name}"`)
+                                }
+                                if (options) {
+                                    hintStrs.push(`options="${options}"`)
+                                }
+                            }
+                            break;
+                            case 'input': {
+                                const type = element.getAttribute('type');
+                                const name = element.getAttribute('name');
+                                hintStrs.push(`inputType="${type ?? 'Unknown'}"`)
+                                if (name) {
+                                    hintStrs.push(`name="${name}"`)
+                                }
+                            }
+                            default:
+                                hintStrs.push(`text="${innerText}"`)
+                        }
                     }
                     xPaths[hint.innerText] = hintStrs.join(' ');
                 }
