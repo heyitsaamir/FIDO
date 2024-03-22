@@ -12,6 +12,6 @@ PWDEBUG=1
 ### Browser modifications
 The vimium extension has this custom mapping:
 ```
-map X LinkHints.activateMode action=focus
+unmap r
 ```
 Open the extension options and include it. It's used for playback recording.
