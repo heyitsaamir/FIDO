@@ -14,4 +14,4 @@ The vimium extension has this custom mapping:
 ```
 unmap r
 ```
-Open the extension options and include it. It's used for playback recording.
+Open the extension options and exclude it. It refreshes the browser if the agent types in `r`, which is not what we want.
