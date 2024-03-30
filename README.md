@@ -1,5 +1,14 @@
 Based off of https://github.com/ishan0102/vimGPT
 
+# To run
+```
+sh setup.sh
+
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
+```
+
 ## Modifications to make to run this
 
 ### env file

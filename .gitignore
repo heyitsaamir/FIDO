@@ -5,3 +5,5 @@ vimGPT/
 .env
 __pycache__/
 playbook*.json
+.venv
+data/

@@ -18,7 +18,7 @@ is_playbook_recording_enabled = os.getenv("PWDEBUG", "0") == "1"
 
 def do_image_reasoning_work(website: Union[Literal['todoist'], str], objective: str, completion_condition: str = "When the objective seems complete"):
     driver = get_driver(website)
-    # input("Press Enter to continue...")
+    input("Press Enter to continue...")
     history: List[str] = []
     playbook_steps = []
     result = None
@@ -209,7 +209,7 @@ def classic_mode():
     completion_condition = input(
         "Please enter your the completion condition: ")
     result = do_image_reasoning_work(
-        "https://google.com", objective, completion_condition)
+        "todoist", objective, completion_condition)
     if isinstance(result, dict):
         return result
     else:
