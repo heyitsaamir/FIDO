@@ -23,7 +23,7 @@ class BrowserAgent:
         self.context = (
             self.playwright
             .chromium.launch_persistent_context(
-                "/Users/aamirjawaid/Library/Application Support/Google/Chrome",
+                user_data_dir='./data',
                 headless=headless,
                 args=[
                     f"--disable-extensions-except={vimium_path}",
@@ -34,7 +34,7 @@ class BrowserAgent:
         )
 
         self.page = self.context.new_page()
-        self.page.set_viewport_size({"width": 760, "height": 844})
+        self.page.set_viewport_size({"width": 360, "height": 844})
 
     def close(self):
         self.playwright.stop()
@@ -138,41 +138,41 @@ class BrowserAgent:
                         continue;
                     }
                     const tagName = element.tagName.toLowerCase()
-                    const innerText = element.innerText
                     let hintStrs = []
                     if (tagName) {
                         hintStrs.push(`type="${tagName}"`)
                     }
-                    if (innerText) {
-                        switch (tagName) {
-                            case 'body':
-                            case 'html':
-                                continue;
-                            case 'select': {
-                                const name = element.getAttribute('name');
-                                const optionText = [];
-                                for (let i = 0; i < element.options.length; i++) {
-                                    optionText.push(element.options[i].text);
-                                }
-                                const options = optionText.join(', ');
-                                if (name) {
-                                    hintStrs.push(`name="${name}"`)
-                                }
-                                if (options) {
-                                    hintStrs.push(`options="${options}"`)
-                                }
+                    if (element.getAttribute('aria-label')) {
+                        hintStrs.push(`text="${element.getAttribute('aria-label')}"`)
+                    } else if (element.innerText) {
+                        hintStrs.push(`text="${element.innerText}"`)
+                    }
+                    switch (tagName) {
+                        case 'body':
+                        case 'html':
+                            continue;
+                        case 'select': {
+                            const name = element.getAttribute('name');
+                            const optionText = [];
+                            for (let i = 0; i < element.options.length; i++) {
+                                optionText.push(element.options[i].text);
                             }
-                            break;
-                            case 'input': {
-                                const type = element.getAttribute('type');
-                                const name = element.getAttribute('name');
-                                hintStrs.push(`inputType="${type ?? 'Unknown'}"`)
-                                if (name) {
-                                    hintStrs.push(`name="${name}"`)
-                                }
+                            const options = optionText.join(', ');
+                            if (name) {
+                                hintStrs.push(`name="${name}"`)
                             }
-                            default:
-                                hintStrs.push(`text="${innerText}"`)
+                            if (options) {
+                                hintStrs.push(`options="${options}"`)
+                            }
+                        }
+                        break;
+                        case 'input': {
+                            const type = element.getAttribute('type');
+                            const name = element.getAttribute('name');
+                            hintStrs.push(`inputType="${type ?? 'Unknown'}"`)
+                            if (name) {
+                                hintStrs.push(`name="${name}"`)
+                            }
                         }
                     }
                     xPaths[hint.innerText] = hintStrs.join(' ');
