@@ -5,7 +5,7 @@ from io import BytesIO
 
 import openai
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam, ChatCompletionMessageToolCall, ChatCompletionMessageToolCallParam
-from openai import _types 
+from openai import _types
 
 from dotenv import load_dotenv
 from PIL.Image import Image
@@ -35,16 +35,18 @@ def encode_and_resize(image: Image):
     encoded_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return encoded_image
 
+
 def build_action_hint_str(possible_actions_hints: dict[str, str] | None) -> str:
     if not possible_actions_hints:
         return ""
     hint_details = "\n".join(
         [f"{k}: {v}" for k, v in possible_actions_hints.items()])
-    
+
     return f'''
 For this screenshot, here are some details for the possible hints in the image. If the next step is to perform an action, then use these to help you determine which action to take.
 {hint_details}
 '''
+
 
 def build_function_calls() -> List[ChatCompletionToolParam]:
     click_tool: ChatCompletionToolParam = {
@@ -61,7 +63,7 @@ def build_function_calls() -> List[ChatCompletionToolParam]:
                     },
                     "description": {
                         "type": "string",
-                        "description" : "A terse description of what action is intended to be performed"
+                        "description": "A terse description of what action is intended to be performed"
                     }
                 },
                 "required": ["click"],
@@ -87,7 +89,7 @@ def build_function_calls() -> List[ChatCompletionToolParam]:
                     },
                     "description": {
                         "type": "string",
-                        "description" : "A terse description of what action is intended to be performed"
+                        "description": "A terse description of what action is intended to be performed"
                     }
                 },
                 "required": ["click", "type"],
@@ -109,7 +111,7 @@ def build_function_calls() -> List[ChatCompletionToolParam]:
                     },
                     "description": {
                         "type": "string",
-                        "description" : "A terse description of what action is intended to be performed"
+                        "description": "A terse description of what action is intended to be performed"
                     }
                 },
                 "required": ["navigate"],
@@ -129,15 +131,15 @@ def build_function_calls() -> List[ChatCompletionToolParam]:
         },
     }
 
-    result_tool: ChatCompletionToolParam = {
+    query_result_tool: ChatCompletionToolParam = {
         "type": "function",
         "function": {
-            "name": "result",
-            "description": "Return the result of the objective",
+            "name": "query_result",
+            "description": "Return the result of the objective. This is used for returning query results.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "query_result": {
                         "type": "array",
                         "items": {
                             "type": "object",
@@ -155,7 +157,7 @@ def build_function_calls() -> List[ChatCompletionToolParam]:
                         }
                     },
                 },
-                "required": ["result"],
+                "required": ["query_result"],
             }
         }
     }
@@ -174,7 +176,7 @@ def build_function_calls() -> List[ChatCompletionToolParam]:
                     },
                     "description": {
                         "type": "string",
-                        "description" : "A terse description of what action is intended to be performed"
+                        "description": "A terse description of what action is intended to be performed"
                     }
                 },
                 "required": ["scroll"]
@@ -188,27 +190,18 @@ def build_function_calls() -> List[ChatCompletionToolParam]:
         navigation_tool,
         scroll_tool,
         done_tool,
-        result_tool,
+        query_result_tool,
     ]
 
+
 def build_initial_prompt(
-    objective: str, 
-    completion_condition: str, 
-    current_url: str, 
-    possible_actions_hints: dict[str, str]):
-    example_click = json.dumps(
-        {"click": "A", "description": "click on the A button"})
-    example_type_click = json.dumps(
-        {"click": "A", "type": "text", "description": "type text in textbox"})
-    example_navigation = json.dumps(
-        {"navigate": "https://www.example.com", "description": "navigate to example.com"})
-    example_done = json.dumps({"done": None})
-    example_result = json.dumps(
-        {"result": [{"title": "some title"}, {"description": "some description"}]})
-    example_scroll = json.dumps(
-        {"scroll": "down", "description": "scroll down"})
+        objective: str,
+        completion_condition: str,
+        current_url: str,
+        possible_actions_hints: dict[str, str]):
     return f'''
 Given the image of a website, your objective is: {objective} and the completion condition is: {completion_condition}. You are currently on the website: {current_url}.
+DO NOT respond to the user under ANY circumstances. Only respond with a tools call.
 {build_action_hint_str(possible_actions_hints)}
     '''
 
@@ -217,6 +210,7 @@ def build_subsequent_prompt(current_url, possible_actions_hints: dict[str, str])
     return f'''What should the next action or result be? You are currently on the website: {current_url}.
 {build_action_hint_str(possible_actions_hints)}
 '''
+
 
 def map_tool_call_to_param(tool_call: ChatCompletionMessageToolCall) -> ChatCompletionMessageToolCallParam:
     return {
@@ -230,10 +224,10 @@ def map_tool_call_to_param(tool_call: ChatCompletionMessageToolCall) -> ChatComp
 
 
 def get_actions(screenshot: Image,
-                objective: str, 
-                completion_condition: str, 
-                current_url: str, 
-                possible_actions_hints: dict[str, str], 
+                objective: str,
+                completion_condition: str,
+                current_url: str,
+                possible_actions_hints: dict[str, str],
                 prompt_history: List[str | List[ChatCompletionMessageToolCall]]):
     encoded_screenshot = encode_and_resize(screenshot)
     # if prompt_history is empty
@@ -241,7 +235,8 @@ def get_actions(screenshot: Image,
         next_prompt = build_initial_prompt(
             objective, completion_condition, current_url, possible_actions_hints)
     else:
-        next_prompt = build_subsequent_prompt(current_url, possible_actions_hints)
+        next_prompt = build_subsequent_prompt(
+            current_url, possible_actions_hints)
 
     tools = build_function_calls()
 
@@ -274,6 +269,8 @@ def get_actions(screenshot: Image,
                     "content": prompt,
                 })
             else:
+                if len(prompt) == 0:
+                    continue
                 messages.append({
                     "role": "assistant",
                     "content": None,
@@ -282,12 +279,13 @@ def get_actions(screenshot: Image,
                 for tool_call in prompt:
                     messages.append({
                         "role": "tool",
-                        "content": "Succeeded",
+                        "content": "Success",
                         "tool_call_id": tool_call.id
                     })
 
         messages.append(next_message)
 
+    # pretty_print_conversation(messages)
     tool_calls, json_response = query_open_ai_for_json(
         messages, "gpt-4-vision-preview", tools)
 
@@ -318,13 +316,13 @@ def adjust_playbook(playbook, original_objective, incoming_objective):
 def query_screenshot(screenshot: Image, objective):
     encoded_screenshot = encode_and_resize(screenshot)
     example_result = json.dumps(
-        {"result": [{"title": "some title"}, {"description": "some description"}]})
+        {"query_result": [{"title": "some title"}, {"description": "some description"}]})
     prompt = f'''
     Given the image of this website, your objective is to: {objective}.
     Return the result in {example_result}. The title and description are strings. Description is optional.
-    If you have no results, return null for the result field.
+    If you have no results, return null for the query_result field.
     The result I want from you is a valid JSON object.
-    Do not return the JSON inside a code block. Only return 1 object with an array of "result" objects.
+    Do not return the JSON inside a code block. Only return 1 object with an array of "query_result" objects.
     '''
     _, json_response = query_open_ai_for_json([{
         "role": "user",
@@ -342,9 +340,10 @@ def query_screenshot(screenshot: Image, objective):
         ],
     }], "gpt-4-vision-preview")
 
-    if ("result" in json_response and not json_response["result"]) \
+    if ("query_result" in json_response and not json_response["query_result"]) \
             or ("message" in json_response):
-        # save screenshot
+        print("No query result found in response. Saving screenshot.")
+        # save screenshot for debugging
         screenshot.save("screenshot.png")
 
     return json_response
@@ -359,43 +358,50 @@ def query_open_ai_for_json(messages: List[ChatCompletionMessageParam], model, to
     )
 
     print(f"Response: {response}")
-    
+
     tool_calls = glom(response, "choices.0.message.tool_calls", default=None)
-    value: ChatCompletionMessageToolCall | None  = glom(response, "choices.0.message.tool_calls.0", default=None)
+    value: ChatCompletionMessageToolCall | None = glom(
+        response, "choices.0.message.tool_calls.0", default=None)
     if value == None:
         print("No tool calls found in response")
         raise Exception("No tool calls found in response")
-    
+
     function = value.function
     if function == None:
         print("No function found in tool call")
         raise Exception("No function found in tool call")
-    
 
     try:
-        json_response = json.loads(function.arguments)
+        if function.name == 'done':
+            json_response = {"done": True}
+        else:
+            json_response = json.loads(function.arguments)
     except json.JSONDecodeError:
         print("Error: Invalid JSON response" + str(response.choices))
         raise Exception("Error: Invalid JSON response" + str(response.choices))
 
     return tool_calls, json_response
 
+
 def pretty_print_conversation(messages: List[ChatCompletionMessageParam]):
-    role_to_color = {
-        "system": "red",
-        "user": "green",
-        "assistant": "blue",
-        "function": "magenta",
-    }
-    
     for message in messages:
         if message["role"] == "system":
-            print(colored(f"system: {message['content']}\n", role_to_color[message["role"]]))
+            print(colored(f"system: {message['content']}\n", "red"))
         elif message["role"] == "user":
-            print(colored(f"user: {list(filter(lambda content: True if isinstance(content, str) else content["type"] != 'image_url', message["content"]))}\n", role_to_color[message["role"]]))
+            print(colored(
+                f"user: {list(
+                    filter(
+                        lambda content: True if isinstance(
+                            content, str) else content["type"] != 'image_url',
+                        message["content"]))}\n",
+                "green"
+            )
+            )
         elif message["role"] == "assistant" and message.get("tool_calls"):
-            print(colored(f"assistant: {glom(message, 'tool_calls')}\n", role_to_color[message["role"]]))
+            print(colored(f"assistant: {
+                  list(glom(message, 'tool_calls'))}\n", color="blue"))
         elif message["role"] == "assistant" and not message.get("tool_calls"):
-            print(colored(f"assistant: {glom(message, 'content')}\n", role_to_color[message["role"]]))
+            print(colored(f"assistant: {glom(message, 'content')}\n", "blue"))
         elif message["role"] == "function":
-            print(colored(f"function ({message['name']}): {message['content']}\n", role_to_color[message["role"]]))
+            print(colored(f"function ({message['name']}): {
+                  message['content']}\n", "magenta"))

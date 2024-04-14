@@ -43,7 +43,7 @@ class BrowserAgent:
         print(f"Performing action: {action}")
         if "done" in action:
             return True
-        if "result" in action:
+        if "query_result" in action:
             return action
         if "click" in action and "type" in action:
             if "clicked_element" in action:
@@ -100,7 +100,7 @@ class BrowserAgent:
                                window.postMessage(data, "*");
                            }
                            ''')
-        
+
     def hideHints(self, withVimBindings: bool = True):
         self.page.evaluate('''
                            () => {
@@ -115,7 +115,7 @@ class BrowserAgent:
             self.page.keyboard.type("d")
         elif direction == "up":
             self.page.keyboard.type("u")
-            
+
     def get_x_paths_for_all_hints(self) -> dict[str, str]:
         return self.page.evaluate('''
             () => {

@@ -53,7 +53,7 @@ def replay_history(website: Union[Literal['todoist'], Literal['google']], object
     result = None
     print("Adjusted playbook: ", adjusted_playbook)
     for action in adjusted_playbook:
-        if "result" in action:
+        if "query_result" in action:
             # wait for the page to be visible before taking a screenshot
             time.sleep(1)
             screenshot = driver.capture(False)
