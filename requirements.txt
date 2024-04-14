@@ -9,7 +9,7 @@ httpcore==1.0.1
 httpx==0.25.1
 idna==3.4
 instructor
-openai==1.1.2
+openai==1.17.1
 Pillow==10.1.0
 playwright==1.39.0
 pydantic==2.5.3
@@ -23,3 +23,5 @@ flask==2.0.2
 numpy==1.26.0
 scipy==1.12.0
 Werkzeug==2.2.2
+glom==23.5.0
+termcolor==2.4.0

@@ -4,13 +4,15 @@ import os
 from io import BytesIO
 
 import openai
-from openai.types.chat import ChatCompletionMessageParam, ChatCompletionAssistantMessageParam, ChatCompletion
-import numpy as np
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam, ChatCompletionMessageToolCall, ChatCompletionMessageToolCallParam
+from openai import _types 
 
 from dotenv import load_dotenv
 from PIL.Image import Image
 from typing import List
-from scipy import spatial
+
+from glom import glom
+from termcolor import colored
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -44,6 +46,151 @@ For this screenshot, here are some details for the possible hints in the image. 
 {hint_details}
 '''
 
+def build_function_calls() -> List[ChatCompletionToolParam]:
+    click_tool: ChatCompletionToolParam = {
+        "type": "function",
+        "function": {
+            "name": "click",
+            "description": "Click on a button or link",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "click": {
+                        "type": "string",
+                        "description": "The value for clicks is a 1-2 letter sequence found within a yellow box on top left of the item you want to click",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description" : "A terse description of what action is intended to be performed"
+                    }
+                },
+                "required": ["click"],
+            },
+        },
+    }
+
+    type_and_click_tool: ChatCompletionToolParam = {
+        "type": "function",
+        "function": {
+            "name": "type_and_click",
+            "description": "Type text in a textbox and then click on a button or link",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "click": {
+                        "type": "string",
+                        "description": "The value for clicks is a 1-2 letter sequence found within a yellow box on top left of the item you want to click",
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "The text to type in the input textbox",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description" : "A terse description of what action is intended to be performed"
+                    }
+                },
+                "required": ["click", "type"],
+            },
+        },
+    }
+
+    navigation_tool: ChatCompletionToolParam = {
+        "type": "function",
+        "function": {
+            "name": "navigate",
+            "description": "Navigate to a different website",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "navigate": {
+                        "type": "string",
+                        "description": "The URL to navigate to",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description" : "A terse description of what action is intended to be performed"
+                    }
+                },
+                "required": ["navigate"],
+            },
+        },
+    }
+
+    done_tool: ChatCompletionToolParam = {
+        "type": "function",
+        "function": {
+            "name": "done",
+            "description": "Indicate that the objective is complete",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    }
+
+    result_tool: ChatCompletionToolParam = {
+        "type": "function",
+        "function": {
+            "name": "result",
+            "description": "Return the result of the objective",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {
+                                    "type": "string",
+                                    "description": "The title of the result"
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "The description of the result"
+                                }
+                            },
+                            "required": ["title"]
+                        }
+                    },
+                },
+                "required": ["result"],
+            }
+        }
+    }
+
+    scroll_tool: ChatCompletionToolParam = {
+        "type": "function",
+        "function": {
+            "name": "scroll",
+            "description": "If you think the interesting part of the website is not visible, you can scroll down or up.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "scroll": {
+                        "type": "string",
+                        "description": "The direction to scroll in. Allowed values are 'up' or 'down'"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description" : "A terse description of what action is intended to be performed"
+                    }
+                },
+                "required": ["scroll"]
+            }
+        }
+    }
+
+    return [
+        click_tool,
+        type_and_click_tool,
+        navigation_tool,
+        scroll_tool,
+        done_tool,
+        result_tool,
+    ]
+
 def build_initial_prompt(
     objective: str, 
     completion_condition: str, 
@@ -62,15 +209,6 @@ def build_initial_prompt(
         {"scroll": "down", "description": "scroll down"})
     return f'''
 Given the image of a website, your objective is: {objective} and the completion condition is: {completion_condition}. You are currently on the website: {current_url}.
-You have access to the following schema:
-For navigation to a different website: {example_navigation}.
-For clicking: {example_click}. The value for clicks is a 1-2 letter sequence found within a yellow box on top left of the item you want to click. 
-For typing: {example_type_click}. For text input fields, first click on the input field (described by a 1-2 letter sequence in the yellow box) and then type the text.
-If you think the interesting part of the website is not visible, you can scroll down or up. For scrolling: {example_scroll}.
-For results: {example_result}. The title and description are strings. Description is optional.
-When there are multiple valid options, pick the best one. If the objective is complete, return { example_done } if the original objective was an action or return { example_result } if the original objective was a query. Remember to only output valid JSON objects. that match the schema. The description field in each example is a simple description of what action is intended to be performed. 
-You only speak JSON. Do not write text that isn’t JSON. The JSON object must ONLY contain the keys "click", "type", "navigate", "done", "result", or "scroll" and the values must match the examples given.
-Do not return the JSON inside a code block. Only return 1 object.
 {build_action_hint_str(possible_actions_hints)}
     '''
 
@@ -80,13 +218,23 @@ def build_subsequent_prompt(current_url, possible_actions_hints: dict[str, str])
 {build_action_hint_str(possible_actions_hints)}
 '''
 
+def map_tool_call_to_param(tool_call: ChatCompletionMessageToolCall) -> ChatCompletionMessageToolCallParam:
+    return {
+        "id": tool_call.id,
+        "function": {
+            "arguments": tool_call.function.arguments,
+            "name": tool_call.function.name
+        },
+        "type": "function"
+    }
+
 
 def get_actions(screenshot: Image,
                 objective: str, 
                 completion_condition: str, 
                 current_url: str, 
                 possible_actions_hints: dict[str, str], 
-                prompt_history: List[str]):
+                prompt_history: List[str | List[ChatCompletionMessageToolCall]]):
     encoded_screenshot = encode_and_resize(screenshot)
     # if prompt_history is empty
     if not prompt_history:
@@ -94,6 +242,8 @@ def get_actions(screenshot: Image,
             objective, completion_condition, current_url, possible_actions_hints)
     else:
         next_prompt = build_subsequent_prompt(current_url, possible_actions_hints)
+
+    tools = build_function_calls()
 
     next_message: ChatCompletionMessageParam = {
         "role": "user",
@@ -117,43 +267,35 @@ def get_actions(screenshot: Image,
     else:
         messages = []
         for prompt in prompt_history:
-            message: ChatCompletionAssistantMessageParam = {
-                "role": "assistant",
-                "content": prompt,
-            }
-            messages.append(message)
+            message: ChatCompletionMessageParam
+            if isinstance(prompt, str):
+                messages.append({
+                    "role": "assistant",
+                    "content": prompt,
+                })
+            else:
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": map(map_tool_call_to_param, prompt)
+                })
+                for tool_call in prompt:
+                    messages.append({
+                        "role": "tool",
+                        "content": "Succeeded",
+                        "tool_call_id": tool_call.id
+                    })
+
         messages.append(next_message)
 
-    print(f"Prompt: {next_prompt}")
-    response, json_response = query_open_ai_for_json(
-        messages, "gpt-4-vision-preview")
+    tool_calls, json_response = query_open_ai_for_json(
+        messages, "gpt-4-vision-preview", tools)
 
     if not prompt_history:
         prompt_history.append(next_prompt)
 
-    prompt_history.append(response.choices[0].message.content)
+    prompt_history.append(tool_calls)
     return json_response
-
-
-def fix_response(badResponse):
-    cleaned_response = openai.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a helpful assistant to fix an invalid JSON response. You need to fix the invalid JSON response to be valid JSON. You must respond in JSON only with no other fluff or bad things will happen. Do not return the JSON inside a code block.",
-            },
-            {"role": "user", "content": f"The invalid JSON response is: {badResponse}"},
-        ],
-    )
-    try:
-        cleaned_json_response = json.loads(
-            cleaned_response.choices[0].message.content)
-    except json.JSONDecodeError:
-        print("Error: Invalid JSON response" +
-              json.dumps(cleaned_response.choices))
-        return {}
-    return cleaned_json_response
 
 
 def adjust_playbook(playbook, original_objective, incoming_objective):
@@ -208,19 +350,52 @@ def query_screenshot(screenshot: Image, objective):
     return json_response
 
 
-def query_open_ai_for_json(messages: List[ChatCompletionMessageParam], model, max_tokens=130) -> tuple[ChatCompletion, dict]:
+def query_open_ai_for_json(messages: List[ChatCompletionMessageParam], model, tools: List[ChatCompletionToolParam] | _types.NotGiven = _types.NotGiven(), max_tokens=130) -> tuple[List[ChatCompletionMessageToolCall], dict]:
     response = openai.chat.completions.create(
         model=model,
         messages=messages,
+        tools=tools,
         max_tokens=max_tokens,
     )
 
     print(f"Response: {response}")
+    
+    tool_calls = glom(response, "choices.0.message.tool_calls", default=None)
+    value: ChatCompletionMessageToolCall | None  = glom(response, "choices.0.message.tool_calls.0", default=None)
+    if value == None:
+        print("No tool calls found in response")
+        raise Exception("No tool calls found in response")
+    
+    function = value.function
+    if function == None:
+        print("No function found in tool call")
+        raise Exception("No function found in tool call")
+    
 
     try:
-        json_response = json.loads(response.choices[0].message.content)
+        json_response = json.loads(function.arguments)
     except json.JSONDecodeError:
         print("Error: Invalid JSON response" + str(response.choices))
-        json_response = fix_response(response.choices[0].message.content)
+        raise Exception("Error: Invalid JSON response" + str(response.choices))
 
-    return response, json_response
+    return tool_calls, json_response
+
+def pretty_print_conversation(messages: List[ChatCompletionMessageParam]):
+    role_to_color = {
+        "system": "red",
+        "user": "green",
+        "assistant": "blue",
+        "function": "magenta",
+    }
+    
+    for message in messages:
+        if message["role"] == "system":
+            print(colored(f"system: {message['content']}\n", role_to_color[message["role"]]))
+        elif message["role"] == "user":
+            print(colored(f"user: {list(filter(lambda content: True if isinstance(content, str) else content["type"] != 'image_url', message["content"]))}\n", role_to_color[message["role"]]))
+        elif message["role"] == "assistant" and message.get("tool_calls"):
+            print(colored(f"assistant: {glom(message, 'tool_calls')}\n", role_to_color[message["role"]]))
+        elif message["role"] == "assistant" and not message.get("tool_calls"):
+            print(colored(f"assistant: {glom(message, 'content')}\n", role_to_color[message["role"]]))
+        elif message["role"] == "function":
+            print(colored(f"function ({message['name']}): {message['content']}\n", role_to_color[message["role"]]))

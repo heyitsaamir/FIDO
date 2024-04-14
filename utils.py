@@ -1,7 +1,6 @@
 from typing import List
 from scipy import spatial
 
-
 def distances_from_embeddings(
     query_embedding: List[float],
     embeddings: List[List[float]],
