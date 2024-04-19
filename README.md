@@ -1,5 +1,9 @@
 Based off of https://github.com/ishan0102/vimGPT
 
+# Details
+
+[Blog post](https://www.aamirj.com/posts/11_building-an-ai-based-browsing-agent)
+
 # To run
 ```
 sh setup.sh
